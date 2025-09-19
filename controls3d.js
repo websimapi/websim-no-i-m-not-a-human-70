@@ -189,7 +189,8 @@ export function setupControlEventListeners(container, controls, raycaster, camer
                 );
                 raycaster.setFromCamera(mouse, camera);
                 const hits = raycaster.intersectObjects(interactiveTargets, true);
-                if (hits.length && camera.position.distanceTo(hits[0].point) < 3.0) { onInteract(); return; }
+                const playerPos = controls.getObject().position;
+                if (hits.length && playerPos.distanceTo(hits[0].point) < 3.0) { onInteract(); return; }
             }
             onTouchEnd(e, raycaster, camera, walkableObjects, onTargetSet);
         };

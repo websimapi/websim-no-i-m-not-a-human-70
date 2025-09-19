@@ -244,7 +244,7 @@ export function initScene3D() {
         const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
         interactRaycaster.set(camera.position, dir);
         const hits = interactRaycaster.intersectObjects(interactiveTargets, true);
-        if (hits.length && camera.position.distanceTo(hits[0].point) < 3.0) openDoor();
+        if (hits.length && controls && controls.getObject().position.distanceTo(hits[0].point) < 3.0) openDoor();
     };
     container.addEventListener('mousedown', onMouseDown);
 
