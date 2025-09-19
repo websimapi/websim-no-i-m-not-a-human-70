@@ -174,11 +174,25 @@ export function createControls(camera, container, instructions) {
     return { controls, raycaster };
 }
 
-export function setupControlEventListeners(container, controls, raycaster, camera, walkableObjects, onTargetSet, instructions) {
+export function setupControlEventListeners(container, controls, raycaster, camera, walkableObjects, onTargetSet, instructions, interactiveTargets, onInteract) {
     if (isMobile) {
         const touchStartHandler = (e) => onTouchStart(e);
         const touchMoveHandler = (e) => onTouchMove(e, controls);
-        const touchEndHandler = (e) => onTouchEnd(e, raycaster, camera, walkableObjects, onTargetSet);
+        const touchEndHandler = (e) => {
+            e.preventDefault();
+            /* check interactive targets first */
+            if (interactiveTargets && interactiveTargets.length && typeof onInteract === 'function') {
+                const touch = e.changedTouches[0];
+                const mouse = new THREE.Vector2(
+                    (touch.clientX / window.innerWidth) * 2 - 1,
+                    -(touch.clientY / window.innerHeight) * 2 + 1
+                );
+                raycaster.setFromCamera(mouse, camera);
+                const hits = raycaster.intersectObjects(interactiveTargets, true);
+                if (hits.length && camera.position.distanceTo(hits[0].point) < 3.0) { onInteract(); return; }
+            }
+            onTouchEnd(e, raycaster, camera, walkableObjects, onTargetSet);
+        };
 
         container.addEventListener('touchstart', touchStartHandler, { passive: false });
         container.addEventListener('touchmove', touchMoveHandler, { passive: false });

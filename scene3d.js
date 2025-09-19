@@ -41,6 +41,20 @@ function onTargetSet(target, hitPoint) {
     }
 }
 
+/* add reusable opener so desktop and mobile share it */
+function openDoor() {
+    if (doorOpening || doorOpened || !barnDoorMesh || !barnGroupRef || !controls) return;
+    doorOpening = true;
+    const playerObj = controls.getObject();
+    const doorPos = new THREE.Vector3(); barnDoorMesh.getWorldPosition(doorPos);
+    const frontDir = new THREE.Vector3().setFromMatrixColumn(barnGroupRef.matrixWorld, 2).normalize();
+    const inwardDir = frontDir.clone().negate();
+    dollyStart = playerObj.position.clone();
+    dollyEnd = doorPos.clone().add(inwardDir.multiplyScalar(3.5)); dollyEnd.y = 1.7;
+    const ip = barnGroupRef.userData?.interiorPlane; lookTarget = ip ? ip.getWorldPosition(new THREE.Vector3()) : doorPos.clone();
+    dollyT = 0; dollyActive = true;
+}
+
 function animate() {
     animationFrameId = requestAnimationFrame(animate);
 
@@ -221,7 +235,7 @@ export function initScene3D() {
 
     // Event listeners
     removeEventListeners = setupControlEventListeners(
-        container, controls, raycaster, camera, walkableObjects, onTargetSet, instructions
+        container, controls, raycaster, camera, walkableObjects, onTargetSet, instructions, interactiveTargets, () => openDoor()
     );
 
     interactRaycaster = new THREE.Raycaster();
@@ -230,19 +244,7 @@ export function initScene3D() {
         const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
         interactRaycaster.set(camera.position, dir);
         const hits = interactRaycaster.intersectObjects(interactiveTargets, true);
-        if (hits.length && camera.position.distanceTo(hits[0].point) < 3.0 && !doorOpening && !doorOpened) {
-            doorOpening = true;
-            // Setup dolly to just outside the doorway and look at interior
-            const playerObj = controls.getObject();
-            const doorPos = new THREE.Vector3(); barnDoorMesh.getWorldPosition(doorPos);
-            const frontDir = new THREE.Vector3().setFromMatrixColumn(barnGroupRef.matrixWorld, 2).normalize(); // +Z of barn (outwards)
-            const inwardDir = frontDir.clone().negate(); // into the barn
-            dollyStart = playerObj.position.clone();
-            dollyEnd = doorPos.clone().add(inwardDir.multiplyScalar(3.5)); dollyEnd.y = 1.7;
-            const ip = barnGroupRef.userData?.interiorPlane;
-            lookTarget = ip ? ip.getWorldPosition(new THREE.Vector3()) : doorPos.clone();
-            dollyT = 0; dollyActive = true;
-        }
+        if (hits.length && camera.position.distanceTo(hits[0].point) < 3.0) openDoor();
     };
     container.addEventListener('mousedown', onMouseDown);
 
