@@ -51,7 +51,7 @@ function openDoor() {
     const inwardDir = frontDir.clone().negate();
     dollyStart = playerObj.position.clone();
     dollyEnd = doorPos.clone().add(inwardDir.multiplyScalar(3.5)); dollyEnd.y = 1.7;
-    const ip = barnGroupRef.userData?.interiorPlane; lookTarget = ip ? ip.getWorldPosition(new THREE.Vector3()) : doorPos.clone();
+    const ip = barnGroupRef.userData?.interiorSurface; lookTarget = ip ? ip.getWorldPosition(new THREE.Vector3()) : doorPos.clone();
     dollyT = 0; dollyActive = true;
 }
 

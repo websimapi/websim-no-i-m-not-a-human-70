@@ -181,15 +181,15 @@ export function createBarn(textureLoader) {
         const botSeg = new THREE.Mesh(new THREE.PlaneGeometry(doorW, bottomH), sideMat);
         botSeg.position.set(doorX, bottomH/2, facadeZ); barnGroup.add(botSeg);
 
-        // Interior plane just inside the barn, aligned behind doorway
-        const interiorPlane = new THREE.Mesh(
-            new THREE.PlaneGeometry(BARN_WIDTH - 0.2, WALL_HEIGHT - 0.2),
-            new THREE.MeshBasicMaterial({ map: interiorTex, side: THREE.DoubleSide })
+        // Panoramic 180° interior wrap (inward-facing half cylinder)
+        interiorTex.wrapS = THREE.RepeatWrapping; interiorTex.wrapT = THREE.ClampToEdgeWrapping; interiorTex.needsUpdate = true;
+        const radius = 5.5, thetaLen = Math.PI;
+        const interiorWrap = new THREE.Mesh(
+            new THREE.CylinderGeometry(radius, radius, BARN_WIDTH - 0.4, 64, 1, true, -Math.PI/2, thetaLen),
+            new THREE.MeshBasicMaterial({ map: interiorTex, side: THREE.BackSide })
         );
-        interiorPlane.position.set(0, WALL_HEIGHT/2, 0);
-        // face outwards (towards camera/front)
-        // default Plane faces +Z; placing slightly inside works without rotation
-        barnGroup.add(interiorPlane);
+        interiorWrap.position.set(0, WALL_HEIGHT/2, -BARN_DEPTH/2 + radius + 0.1);
+        barnGroup.add(interiorWrap);
 
         // Small angled awning above door
         const awning = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 0.6), roofMaterial);
@@ -201,7 +201,7 @@ export function createBarn(textureLoader) {
         barnGroup.userData.doorPivot = doorPivot;
         barnGroup.userData.doorMesh = door;
         // store reference if needed later
-        barnGroup.userData.interiorPlane = interiorPlane;
+        barnGroup.userData.interiorSurface = interiorWrap;
     }
 
     barnGroup.position.z = -15;
