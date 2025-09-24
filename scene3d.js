@@ -249,11 +249,13 @@ function animate() {
             dollyActive = false;
             if (!isExitingBarn) {
                 isInsideBarnView = true;
+                container.dataset.insideBarn = 'true'; // Set state for controls3d
                 if (!isMobile && controls.isLocked) {
                     controls.unlock();
                 }
             } else {
                  isExitingBarn = false; // Dolly out finished
+                 container.dataset.insideBarn = 'false';
             }
         }
     }
@@ -409,6 +411,7 @@ export function stopScene3D() {
     if (container) {
         container.style.display = 'none';
         container.style.cursor = '';
+        container.dataset.insideBarn = 'false';
     }
 }
 

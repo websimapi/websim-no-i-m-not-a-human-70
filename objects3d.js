@@ -204,6 +204,7 @@ export function createBarn(textureLoader) {
         // Position it on the inner surface where the door is rendered
         exitTrigger.position.set(-3.8, 2.7, 7.8);
         exitTrigger.rotation.y = Math.PI * 0.4;
+        exitTrigger.name = 'barn_exit_trigger'; // name for specific targeting
         barnGroup.add(exitTrigger);
         barnGroup.userData.exitTrigger = exitTrigger;
 

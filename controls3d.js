@@ -101,11 +101,20 @@ function onTouchEnd(event, raycaster, camera, walkableObjects, onTargetSet, inte
         const hits = raycaster.intersectObjects(interactiveTargets, true);
         if (hits.length > 0) {
             const playerPos = camera.getWorldPosition(new THREE.Vector3());
+            
+            const isInside = camera.position.z < 8.9; // A simple check if player is inside
+            
             // Loosen distance check for mobile tap
-            if (playerPos.distanceTo(hits[0].point) < 8.0) {
-                onInteract(hits[0].object);
-                isDragging = false; // Reset drag state
-                return;
+            if (isInside) {
+                if (hits[0].object.name === 'barn_exit_trigger') {
+                    onInteract(hits[0].object);
+                    isDragging = false; // Reset drag state
+                    return;
+                }
+            } else if (playerPos.distanceTo(hits[0].point) < 8.0) {
+                 onInteract(hits[0].object);
+                 isDragging = false; // Reset drag state
+                 return;
             }
         }
     }
@@ -212,6 +221,14 @@ export function setupControlEventListeners(container, controls, raycaster, camer
                 mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
                 mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
                 raycaster.setFromCamera(mouse, camera);
+
+                // Check for exit trigger first
+                const exitHits = raycaster.intersectObjects(interactiveTargets.filter(t => t.name === 'barn_exit_trigger'), true);
+                if (exitHits.length > 0) {
+                    onInteract(exitHits[0].object);
+                    return;
+                }
+                
                 const intersects = raycaster.intersectObjects(walkableObjects);
                 if (intersects.length > 0) {
                     const hit = intersects[0];
