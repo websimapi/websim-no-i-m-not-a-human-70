@@ -5,12 +5,12 @@ const PLAYER_RADIUS = 0.8;
 
 export function initializeColliders(barnGroup) {
     barnColliders.length = 0; // Clear existing colliders
-    
+
     const BARN_WIDTH = 12;
     const BARN_DEPTH = 18;
     const EXT_WIDTH = 5;
     const EXT_DEPTH = 8;
-    
+
     const t = 0.8, yMin = 0, yMax = 3;
     const halfW = BARN_WIDTH/2, halfD = BARN_DEPTH/2;
     const gx = barnGroup.position.x, gz = barnGroup.position.z;
@@ -20,7 +20,7 @@ export function initializeColliders(barnGroup) {
         const max = new THREE.Vector3(cx + w/2, yMax, cz + d/2);
         barnColliders.push(new THREE.Box3(min, max));
     };
-    
+
     // Main barn perimeter walls
     // front wall split around real doorway opening
     const doorX = -2.5, doorW = 1.25;
@@ -51,7 +51,7 @@ export function resolveCollision(oldPos, delta) {
         }
         return p;
     };
-    
+
     let p = tryMove(delta.x, delta.z);
     if (p) return p;
     p = tryMove(delta.x, 0);
