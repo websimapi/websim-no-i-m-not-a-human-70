@@ -87,7 +87,7 @@ function onTouchMove(event, controls) {
     touchStartY = touch.clientY;
 }
 
-function onTouchEnd(event, raycaster, camera, walkableObjects, onTargetSet, interactiveTargets, onInteract) {
+function onTouchEnd(event, raycaster, camera, walkableObjects, onTargetSet, interactiveTargets, onInteract, container) {
     event.preventDefault();
     
     const touch = event.changedTouches[0];
@@ -194,7 +194,7 @@ export function setupControlEventListeners(container, controls, raycaster, camer
     if (isMobile) {
         const touchStartHandler = (e) => onTouchStart(e);
         const touchMoveHandler = (e) => onTouchMove(e, controls);
-        const touchEndHandler = (e) => onTouchEnd(e, raycaster, camera, walkableObjects, onTargetSet, interactiveTargets, onInteract);
+        const touchEndHandler = (e) => onTouchEnd(e, raycaster, camera, walkableObjects, onTargetSet, interactiveTargets, onInteract, container);
 
         container.addEventListener('touchstart', touchStartHandler, { passive: false });
         container.addEventListener('touchmove', touchMoveHandler, { passive: false });
