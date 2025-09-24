@@ -59,10 +59,12 @@ function openDoor() {
     const frontWallZ = barnGroupRef.position.z + BARN_DEPTH / 2;
 
     const doorMidpoint = new THREE.Vector3(doorWorldPos.x, 1.7, frontWallZ + 1.5);
+    
+    // Path to the center of the barn's width, just inside the door.
     dollyEnd = new THREE.Vector3(
-        doorWorldPos.x + 0.625, // Centered on door opening
+        barnGroupRef.position.x, // Centered on barn's X
         1.7,
-        frontWallZ - 3.0 // Positioned inside
+        frontWallZ - 3.5 // Positioned inside
     );
 
     // Look into the barn

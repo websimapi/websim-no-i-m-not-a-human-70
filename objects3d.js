@@ -146,7 +146,7 @@ export function createBarn(textureLoader) {
         const doorPivot = new THREE.Group();
         const doorX = -2.5, doorY = 1.1, doorZ = BARN_DEPTH / 2 + 0.02;
         const doorW = 1.25, doorH = 2.2;
-        const doorMat = new THREE.MeshStandardMaterial({ color: 0x3a2f2a, roughness: 0.92, metalness: 0.06 });
+        const doorMat = new THREE.MeshStandardMaterial({ color: 0x3a2f2a, roughness: 0.92, metalness: 0.06, side: THREE.DoubleSide });
         const door = new THREE.Mesh(new THREE.PlaneGeometry(doorW, doorH), doorMat);
         doorPivot.position.set(doorX - doorW/2, doorY, doorZ); // hinge at left side
         door.position.set(doorW/2, 0, 0); // offset relative to hinge
