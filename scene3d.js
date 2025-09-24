@@ -34,9 +34,15 @@ const canvas = document.getElementById('scene-3d-canvas');
 const instructions = document.getElementById('scene-3d-instructions');
 
 function onTargetSet(target, hitPoint) {
-    if (isInsideBarnView && !isInsideBarn(target)) {
-        exitBarn();
-        return;
+    if (isInsideBarnView) {
+        const BARN_DEPTH = 18;
+        const frontWallZ = barnGroupRef.position.z + BARN_DEPTH / 2;
+        // Check if the click target is "in front" of the barn's front wall,
+        // which means the user clicked through the doorway onto the ground outside.
+        if (target.z > frontWallZ) {
+            exitBarn();
+            return;
+        }
     }
     targetPosition = target;
     isMovingToTarget = true;
