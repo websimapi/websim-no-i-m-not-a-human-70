@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { createControls, setupControlEventListeners, getMovementState, isMobile } from './controls3d.js';
 import { createGround, createMoveIndicator, createBarn, createFoliage, createLighting } from './objects3d.js';
-import { initializeColliders, resolveCollision } from './collision3d.js';
+import { initializeColliders, resolveCollision, initializeBarnInteriorCollider } from './collision3d.js';
 
 let scene, camera, renderer, controls, raycaster;
 const velocity = new THREE.Vector3();
@@ -87,7 +87,8 @@ function exitBarn() {
     dollyT = 0;
     
     // The start point is the current (locked) position inside the barn
-    const currentPos = controls.getObject().position.clone();
+    const playerObj = controls.getObject();
+    const currentPos = playerObj.position.clone();
     
     // The end point is where the dolly-in started from (or a safe spot)
     const endPos = dollyStart[0].clone(); // dollyStart[0] holds the pre-entry position
@@ -98,6 +99,16 @@ function exitBarn() {
     
     // No look target on exit, player controls view
     lookTarget = null;
+    
+    // Clear any movement target when exiting
+    isMovingToTarget = false;
+    if(moveIndicator) moveIndicator.visible = false;
+    
+    // Re-enable pointer lock for desktop on exit
+    if (!isMobile) {
+        if(document.pointerLockElement) document.exitPointerLock();
+        setTimeout(() => controls.lock(), 100);
+    }
 }
 
 function animate() {
@@ -110,11 +121,21 @@ function animate() {
     const time = performance.now();
     const delta = (time - prevTime) / 1000;
     const player = controls.getObject();
+    
+    const canMoveToTarget = (isMobile || isInsideBarnView) && isMovingToTarget && targetPosition;
 
     if (isInsideBarnView) {
-        player.position.copy(dollyEnd); // Lock position
-        velocity.x = 0; velocity.z = 0; isMovingToTarget = false; // Prevent movement
-    } else if (isMobile && isMovingToTarget && targetPosition) {
+        if (isMobile) {
+            // Mobile: keep looking around enabled
+        } else {
+            // Desktop: ensure cursor is free for tap-to-move
+            if (document.pointerLockElement === canvas) {
+                document.exitPointerLock();
+            }
+        }
+    }
+    
+    if (canMoveToTarget) {
         const distance = player.position.distanceTo(targetPosition);
         if (moveIndicator && moveIndicator.visible) {
             const t = time * 0.004;
@@ -132,15 +153,15 @@ function animate() {
             const direction = targetPosition.clone().sub(player.position).normalize();
             const moveSpeed = Math.min(distance * 3, 5); // Speed based on distance
             const moveVector = direction.multiplyScalar(moveSpeed * delta);
-            const newPosition = (doorOpened && isInsideBarn(player.position)) ? player.position.clone().add(moveVector) : resolveCollision(player.position, moveVector);
+            const newPosition = resolveCollision(player.position, moveVector, isInsideBarnView);
             if (newPosition.equals(player.position)) {
                 isMovingToTarget = false; targetPosition = null; if (moveIndicator) moveIndicator.visible = false;
             } else {
                 player.position.copy(newPosition);
             }
         }
-    } else if (!isMobile) {
-        // Desktop controls
+    } else if (!isMobile && !isInsideBarnView) {
+        // Desktop controls (only outside the barn)
         const movementState = getMovementState();
         velocity.x -= velocity.x * 10.0 * delta;
         velocity.z -= velocity.z * 10.0 * delta;
@@ -156,7 +177,7 @@ function animate() {
         const forward = new THREE.Vector3(); controls.getObject().getWorldDirection(forward); forward.y = 0; forward.normalize();
         const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0,1,0)).normalize();
         const desired = forward.multiplyScalar(moveDeltaZ).add(right.multiplyScalar(moveDeltaX));
-        const resolved = (doorOpened && isInsideBarn(player.position)) ? player.position.clone().add(desired) : resolveCollision(player.position, desired);
+        const resolved = resolveCollision(player.position, desired, isInsideBarnView);
         player.position.copy(resolved);
     }
 
@@ -196,8 +217,7 @@ function animate() {
             doorHighlight.material.opacity = 0.65 + Math.sin(time * 0.012) * 0.2;
             container.style.cursor = 'pointer';
             container.dataset.interact = '1';
-            if (!isMobile && typeof controls.unlock === 'function') controls.unlock(); // show cursor immediately
-        } else if (!isMobile) {
+        } else if (!isInsideBarnView) { // Don't clear cursor if inside barn (we need it for tap-to-move)
             container.style.cursor = '';
             container.dataset.interact = '';
         }
@@ -229,6 +249,9 @@ function animate() {
             dollyActive = false;
             if (!isExitingBarn) {
                 isInsideBarnView = true;
+                if (!isMobile && controls.isLocked) {
+                    controls.unlock();
+                }
             } else {
                  isExitingBarn = false; // Dolly out finished
             }
@@ -304,6 +327,9 @@ export function initScene3D() {
 
     // Initialize collision system
     initializeColliders(barnGroup);
+    if (barnGroup.userData.interiorSurface) {
+        initializeBarnInteriorCollider(barnGroup.userData.interiorSurface);
+    }
 
     // Foliage
     const foliageGroup = createFoliage();
@@ -322,8 +348,11 @@ export function initScene3D() {
     // Event listeners
     removeEventListeners = setupControlEventListeners(
         container, controls, raycaster, camera, walkableObjects, onTargetSet, instructions, interactiveTargets, (target) => {
-            if (target === barnExitTrigger) exitBarn();
-            else openDoor();
+            if (target === barnExitTrigger) {
+                exitBarn();
+            } else {
+                openDoor();
+            }
         }
     );
 

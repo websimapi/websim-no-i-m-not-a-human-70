@@ -2,9 +2,20 @@ import * as THREE from 'three';
 
 const barnColliders = [];
 const PLAYER_RADIUS = 0.8;
+let interiorCylinder = null;
+
+export function initializeBarnInteriorCollider(cylinderMesh) {
+    const worldPos = new THREE.Vector3();
+    cylinderMesh.getWorldPosition(worldPos);
+    interiorCylinder = {
+        center: new THREE.Vector2(worldPos.x, worldPos.z),
+        radius: cylinderMesh.geometry.parameters.radiusTop,
+    };
+}
 
 export function initializeColliders(barnGroup) {
     barnColliders.length = 0; // Clear existing colliders
+    interiorCylinder = null; // Clear interior collider too
 
     const BARN_WIDTH = 12;
     const BARN_DEPTH = 18;
@@ -41,9 +52,23 @@ export function initializeColliders(barnGroup) {
     mk(extCx + EXT_WIDTH/2, extCz, t, EXT_DEPTH);
 }
 
-export function resolveCollision(oldPos, delta) {
+export function resolveCollision(oldPos, delta, isInsideBarn = false) {
     const tryMove = (dx, dz) => {
         const p = oldPos.clone().add(new THREE.Vector3(dx, 0, dz));
+        
+        if (isInsideBarn && interiorCylinder) {
+            const p2d = new THREE.Vector2(p.x, p.z);
+            const distSq = p2d.distanceToSquared(interiorCylinder.center);
+            const effectiveRadius = interiorCylinder.radius - PLAYER_RADIUS;
+            if (distSq > effectiveRadius * effectiveRadius) {
+                // Project back onto the cylinder boundary
+                const dir = p2d.sub(interiorCylinder.center).normalize();
+                const correctedPos2D = interiorCylinder.center.clone().add(dir.multiplyScalar(effectiveRadius));
+                p.x = correctedPos2D.x;
+                p.z = correctedPos2D.y;
+            }
+        }
+
         for (const box of barnColliders) {
             const b = box.clone(); 
             b.expandByScalar(PLAYER_RADIUS);

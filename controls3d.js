@@ -110,7 +110,7 @@ function onTouchEnd(event, raycaster, camera, walkableObjects, onTargetSet, inte
         }
     }
 
-    // If not dragging and no interaction, handle movement
+    // If not dragging, handle movement
     if (!isDragging) {
         const intersects = raycaster.intersectObjects(walkableObjects);
         if (intersects.length > 0) {
@@ -176,7 +176,7 @@ export function createControls(camera, container, instructions) {
         player.position.set(0, 1.7, 5);
 
         if (instructions) {
-            instructions.querySelector('div').textContent = 'Tap to move, Drag to look';
+            instructions.textContent = 'Tap to move, Drag to look';
             instructions.classList.remove('hidden');
         }
         raycaster = new THREE.Raycaster();
@@ -204,8 +204,24 @@ export function setupControlEventListeners(container, controls, raycaster, camer
             container.removeEventListener('touchend', touchEndHandler);
         };
     } else {
-        const clickHandler = () => {
-            if (controls && container.dataset.interact !== '1') controls.lock();
+        const clickHandler = (e) => {
+            const isInside = container.dataset.insideBarn === 'true';
+
+            if (isInside) {
+                const mouse = new THREE.Vector2();
+                mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+                mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+                raycaster.setFromCamera(mouse, camera);
+                const intersects = raycaster.intersectObjects(walkableObjects);
+                if (intersects.length > 0) {
+                    const hit = intersects[0];
+                    const targetPosition = hit.point.clone();
+                    targetPosition.y = 1.7;
+                    onTargetSet(targetPosition, hit.point);
+                }
+            } else if (container.dataset.interact !== '1') {
+                controls.lock();
+            }
         };
 
         container.addEventListener('click', clickHandler);
