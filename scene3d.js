@@ -34,6 +34,10 @@ const canvas = document.getElementById('scene-3d-canvas');
 const instructions = document.getElementById('scene-3d-instructions');
 
 function onTargetSet(target, hitPoint) {
+    if (isInsideBarnView && !isInsideBarn(target)) {
+        exitBarn();
+        return;
+    }
     targetPosition = target;
     isMovingToTarget = true;
     if (moveIndicator) {
@@ -249,13 +253,11 @@ function animate() {
             dollyActive = false;
             if (!isExitingBarn) {
                 isInsideBarnView = true;
-                container.dataset.insideBarn = 'true'; // Set state for controls3d
                 if (!isMobile && controls.isLocked) {
                     controls.unlock();
                 }
             } else {
                  isExitingBarn = false; // Dolly out finished
-                 container.dataset.insideBarn = 'false';
             }
         }
     }
@@ -352,8 +354,26 @@ export function initScene3D() {
         container, controls, raycaster, camera, walkableObjects, onTargetSet, instructions, interactiveTargets, (target) => {
             if (target === barnExitTrigger) {
                 exitBarn();
-            } else {
-                openDoor();
+                return;
+            }
+
+            // Check if the clicked object is the door or part of it
+            let parent = target;
+            let isDoorPart = false;
+            while(parent) {
+                if (parent === barnGroupRef.userData.doorPivot) {
+                    isDoorPart = true;
+                    break;
+                }
+                parent = parent.parent;
+            }
+
+            if (isDoorPart) {
+                if (isInsideBarnView) {
+                    exitBarn();
+                } else {
+                    openDoor();
+                }
             }
         }
     );
@@ -411,7 +431,6 @@ export function stopScene3D() {
     if (container) {
         container.style.display = 'none';
         container.style.cursor = '';
-        container.dataset.insideBarn = 'false';
     }
 }
 
