@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+import { isValidPosition, isPathClear } from './collision3d.js';
 
 const PI_2 = Math.PI / 2;
 const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
@@ -117,7 +118,13 @@ function onTouchEnd(event, raycaster, camera, walkableObjects, onTargetSet, inte
             const hit = intersects[0];
             const targetPosition = hit.point.clone();
             targetPosition.y = 1.7;
-            onTargetSet(targetPosition, hit.point);
+            
+            // Validate target position before setting
+            const playerPos = camera.getWorldPosition(new THREE.Vector3());
+            const isInside = container.dataset.insideBarn === 'true';
+            if (isValidPosition(targetPosition, isInside) && isPathClear(playerPos, targetPosition, isInside)) {
+                onTargetSet(targetPosition, hit.point);
+            }
         }
     }
 
@@ -220,7 +227,12 @@ export function setupControlEventListeners(container, controls, raycaster, camer
                     const hit = walkHits[0];
                     const targetPosition = hit.point.clone();
                     targetPosition.y = 1.7;
-                    onTargetSet(targetPosition, hit.point);
+                    
+                    // Validate target position
+                    const playerPos = camera.getWorldPosition(new THREE.Vector3());
+                    if (isValidPosition(targetPosition, true) && isPathClear(playerPos, targetPosition, true)) {
+                        onTargetSet(targetPosition, hit.point);
+                    }
                 }
             } else if (container.dataset.interact !== '1') {
                 controls.lock();

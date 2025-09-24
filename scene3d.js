@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { createControls, setupControlEventListeners, getMovementState, isMobile } from './controls3d.js';
 import { createGround, createMoveIndicator, createBarn, createFoliage, createLighting } from './objects3d.js';
-import { initializeColliders, resolveCollision, initializeBarnInteriorCollider } from './collision3d.js';
+import { initializeColliders, resolveCollision, initializeBarnInteriorCollider, setDoorState, isValidPosition, isPathClear } from './collision3d.js';
 
 let scene, camera, renderer, controls, raycaster;
 const velocity = new THREE.Vector3();
@@ -38,24 +38,28 @@ function onTargetSet(target, hitPoint) {
         // More precise check for clicking "through" the doorway
         const BARN_DEPTH = 18;
         const frontWallZ = barnGroupRef.position.z + BARN_DEPTH / 2;
-        const DOOR_X = -2.5, DOOR_W = 1.25, DOOR_H = 2.2, DOOR_Y = 1.1;
-
+        const DOOR_X = -2.5, DOOR_W = 1.25;
         const doorMinX = DOOR_X - DOOR_W / 2;
         const doorMaxX = DOOR_X + DOOR_W / 2;
-        const doorMinY = DOOR_Y - DOOR_H / 2;
-        const doorMaxY = DOOR_Y + DOOR_H / 2;
+
+        if (target.z > frontWallZ && target.x > doorMinX && target.x < doorMaxX) {
+            exitBarn();
+            return;
+        }
         
-        // Check if the click INTERSECTED the doorway plane.
-        const ray = new THREE.Ray(camera.position, target.clone().sub(camera.position).normalize());
-        const doorPlane = new THREE.Plane(new THREE.Vector3(0,0,-1), frontWallZ);
-        const intersectionPoint = new THREE.Vector3();
-        if(ray.intersectPlane(doorPlane, intersectionPoint)){
-            if (intersectionPoint.x > doorMinX && intersectionPoint.x < doorMaxX && intersectionPoint.y > doorMinY && intersectionPoint.y < doorMaxY) {
-                 exitBarn();
-                 return;
-            }
+        // Check if target position is valid and path is clear
+        const playerPos = controls.getObject().position;
+        if (!isValidPosition(target, true) || !isPathClear(playerPos, target, true)) {
+            return; // Invalid target, ignore
+        }
+    } else {
+        // Outside barn - check if target is valid and path is clear
+        const playerPos = controls.getObject().position;
+        if (!isValidPosition(target, false) || !isPathClear(playerPos, target, false)) {
+            return; // Invalid target, ignore
         }
     }
+    
     targetPosition = target;
     isMovingToTarget = true;
     if (moveIndicator) {
@@ -69,6 +73,7 @@ function onTargetSet(target, hitPoint) {
 function openDoor() {
     if (doorOpening || doorOpened || !barnDoorMesh || !barnGroupRef || !controls) return;
     doorOpening = true;
+    setDoorState(true); // Update collision system
     isExitingBarn = false;
     const playerObj = controls.getObject();
     dollyStart = playerObj.position.clone();
@@ -215,7 +220,11 @@ function animate() {
         const pivot = interactiveTargets[0];
         if (pivot) pivot.rotation.y = doorAngle;
         // keep the physical door visible while it swings and after it opens
-        if (Math.abs(doorAngle - target) < 0.02) { doorOpened = true; doorOpening = false; }
+        if (Math.abs(doorAngle - target) < 0.02) { 
+            doorOpened = true; 
+            doorOpening = false;
+            setDoorState(true); // Ensure door is marked as open
+        }
     }
 
     if (isExitingBarn && !doorOpening) {
@@ -225,6 +234,7 @@ function animate() {
         if (pivot) pivot.rotation.y = doorAngle;
         if (Math.abs(doorAngle - targetAngle) < 0.02) {
             doorOpened = false;
+            setDoorState(false); // Update collision system
             if(!dollyActive) isExitingBarn = false; // Stop closing when shut and dolly is done
         }
     }
