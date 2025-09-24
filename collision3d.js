@@ -27,8 +27,8 @@ export function initializeColliders(barnGroup) {
     const gx = barnGroup.position.x, gz = barnGroup.position.z;
 
     const mk = (cx, cz, w, d) => {
-        const min = new THREE.Vector3(gx + cx - w/2, yMin, gz + cz - d/2);
-        const max = new THREE.Vector3(gx + cx + w/2, yMax, gz + cz + d/2);
+        const min = new THREE.Vector3(cx - w/2, yMin, cz - d/2);
+        const max = new THREE.Vector3(cx + w/2, yMax, cz + d/2);
         barnColliders.push(new THREE.Box3(min, max));
     };
 
@@ -37,19 +37,15 @@ export function initializeColliders(barnGroup) {
     const doorX = -2.5, doorW = 1.25;
     const leftFrontW  = (halfW + (doorX - doorW/2));
     const rightFrontW = (halfW - (doorX + doorW/2));
-    const leftFrontX = -(halfW - leftFrontW/2);
-    const rightFrontX = (halfW - rightFrontW/2);
-
-    if (leftFrontW > 0.01)  mk(leftFrontX, halfD, leftFrontW, t);
-    if (rightFrontW > 0.01) mk(rightFrontX, halfD, rightFrontW, t);
-
-    mk(0, -halfD, BARN_WIDTH, t);     // back
-    mk(-halfW, 0, t, BARN_DEPTH);     // left
-    mk(halfW, 0, t, BARN_DEPTH);     // right
+    if (leftFrontW > 0.01)  mk(gx - (halfW - leftFrontW/2), gz + halfD, leftFrontW, t);
+    if (rightFrontW > 0.01) mk(gx + (halfW - rightFrontW/2), gz + halfD, rightFrontW, t);
+    mk(gx, gz - halfD, BARN_WIDTH, t);     // back
+    mk(gx - halfW, gz, t, BARN_DEPTH);     // left
+    mk(gx + halfW, gz, t, BARN_DEPTH);     // right
 
     // Left side extension perimeter
-    const extCx = -(BARN_WIDTH / 2 + EXT_WIDTH / 2);
-    const extCz = -2;
+    const extCx = gx - (BARN_WIDTH / 2 + EXT_WIDTH / 2);
+    const extCz = gz - 2;
     mk(extCx, extCz + EXT_DEPTH/2, EXT_WIDTH, t);
     mk(extCx, extCz - EXT_DEPTH/2, EXT_WIDTH, t);
     mk(extCx - EXT_WIDTH/2, extCz, t, EXT_DEPTH);

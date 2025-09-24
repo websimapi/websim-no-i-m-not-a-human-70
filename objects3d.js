@@ -217,7 +217,6 @@ export function createBarn(textureLoader) {
         barnGroup.userData.doorPivot = doorPivot;
         barnGroup.userData.doorMesh = door;
         // store reference if needed later
-        barnGroup.userData.doorCenter = new THREE.Vector3(doorX, doorY, doorZ);
         barnGroup.userData.interiorSurface = interiorWrap;
     }
 

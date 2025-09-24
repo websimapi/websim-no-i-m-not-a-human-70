@@ -38,13 +38,22 @@ function onTargetSet(target, hitPoint) {
         // More precise check for clicking "through" the doorway
         const BARN_DEPTH = 18;
         const frontWallZ = barnGroupRef.position.z + BARN_DEPTH / 2;
-        const DOOR_X = -2.5, DOOR_W = 1.25;
+        const DOOR_X = -2.5, DOOR_W = 1.25, DOOR_H = 2.2, DOOR_Y = 1.1;
+
         const doorMinX = DOOR_X - DOOR_W / 2;
         const doorMaxX = DOOR_X + DOOR_W / 2;
-
-        if (target.z > frontWallZ && target.x > doorMinX && target.x < doorMaxX) {
-            exitBarn();
-            return;
+        const doorMinY = DOOR_Y - DOOR_H / 2;
+        const doorMaxY = DOOR_Y + DOOR_H / 2;
+        
+        // Check if the click INTERSECTED the doorway plane.
+        const ray = new THREE.Ray(camera.position, target.clone().sub(camera.position).normalize());
+        const doorPlane = new THREE.Plane(new THREE.Vector3(0,0,-1), frontWallZ);
+        const intersectionPoint = new THREE.Vector3();
+        if(ray.intersectPlane(doorPlane, intersectionPoint)){
+            if (intersectionPoint.x > doorMinX && intersectionPoint.x < doorMaxX && intersectionPoint.y > doorMinY && intersectionPoint.y < doorMaxY) {
+                 exitBarn();
+                 return;
+            }
         }
     }
     targetPosition = target;
@@ -65,12 +74,13 @@ function openDoor() {
     dollyStart = playerObj.position.clone();
     
     // Get door's world position to correctly align the path
-    const doorWorldCenter = barnGroupRef.userData.doorCenter.clone().applyMatrix4(barnGroupRef.matrixWorld);
+    const doorWorldPos = new THREE.Vector3();
+    barnGroupRef.userData.doorPivot.getWorldPosition(doorWorldPos);
     
     const BARN_DEPTH = 18;
     const frontWallZ = barnGroupRef.position.z + BARN_DEPTH / 2;
 
-    const doorMidpoint = new THREE.Vector3(doorWorldCenter.x, 1.7, frontWallZ + 1.5);
+    const doorMidpoint = new THREE.Vector3(doorWorldPos.x, 1.7, frontWallZ + 1.5);
     
     // Path to the center of the barn's width, just inside the door.
     dollyEnd = new THREE.Vector3(
@@ -134,7 +144,7 @@ function animate() {
     const delta = (time - prevTime) / 1000;
     const player = controls.getObject();
     
-    const canMoveToTarget = (isMobile || isInsideBarnView) && isMovingToTarget && targetPosition && !dollyActive;
+    const canMoveToTarget = (isMobile || isInsideBarnView) && isMovingToTarget && targetPosition;
 
     if (isInsideBarnView) {
         if (isMobile) {
