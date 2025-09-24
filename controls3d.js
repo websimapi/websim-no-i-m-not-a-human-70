@@ -174,11 +174,6 @@ export function createControls(camera, container, instructions) {
         controls = new MobileControls(camera);
         const player = controls.getObject();
         player.position.set(0, 1.7, 5);
-
-        if (instructions) {
-            instructions.textContent = 'Tap to move, Drag to look';
-            instructions.classList.remove('hidden');
-        }
         raycaster = new THREE.Raycaster();
     } else {
         controls = new DesktopControls(camera, document.body);
@@ -212,9 +207,17 @@ export function setupControlEventListeners(container, controls, raycaster, camer
                 mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
                 mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
                 raycaster.setFromCamera(mouse, camera);
-                const intersects = raycaster.intersectObjects(walkableObjects);
-                if (intersects.length > 0) {
-                    const hit = intersects[0];
+
+                // Prioritize interaction over movement when inside
+                const interactHits = raycaster.intersectObjects(interactiveTargets, true);
+                if (interactHits.length > 0) {
+                    onInteract(interactHits[0].object);
+                    return; // Interaction handled, stop here
+                }
+
+                const walkHits = raycaster.intersectObjects(walkableObjects);
+                if (walkHits.length > 0) {
+                    const hit = walkHits[0];
                     const targetPosition = hit.point.clone();
                     targetPosition.y = 1.7;
                     onTargetSet(targetPosition, hit.point);
