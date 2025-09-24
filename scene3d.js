@@ -53,7 +53,17 @@ function openDoor() {
     const frontDir = new THREE.Vector3().setFromMatrixColumn(barnGroupRef.matrixWorld, 2).normalize();
     const inwardDir = frontDir.clone().negate();
     dollyStart = playerObj.position.clone();
-    dollyEnd = doorPos.clone().add(inwardDir.multiplyScalar(2.0)); dollyEnd.y = 1.7;
+    
+    // New dollyEnd calculation for centered position
+    const BARN_DEPTH = 18;
+    const barnCenter = barnGroupRef.position.clone(); // Barn is at (0, 0, -15)
+    const frontWallZ = barnCenter.z + BARN_DEPTH / 2; // Z position of the front wall
+    dollyEnd = new THREE.Vector3(
+        barnCenter.x, // Centered on X
+        1.7,          // Player height
+        frontWallZ - 3.0 // Positioned 3 units inside from the front wall
+    );
+
     const ip = barnGroupRef.userData?.interiorSurface;
     lookTarget = ip ? ip.getWorldPosition(new THREE.Vector3()) : doorPos.clone();
     lookTarget.y = 1.7; // look straight ahead
