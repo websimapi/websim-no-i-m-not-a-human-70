@@ -86,19 +86,33 @@ function onTouchMove(event, controls) {
     touchStartY = touch.clientY;
 }
 
-function onTouchEnd(event, raycaster, camera, walkableObjects, onTargetSet) {
+function onTouchEnd(event, raycaster, camera, walkableObjects, onTargetSet, interactiveTargets, onInteract) {
     event.preventDefault();
+    
+    const touch = event.changedTouches[0];
+    const mouse = new THREE.Vector2();
+    mouse.x = (touch.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(touch.clientY / window.innerHeight) * 2 + 1;
+    
+    raycaster.setFromCamera(mouse, camera);
 
+    // Check for interaction first
+    if (interactiveTargets && interactiveTargets.length > 0 && typeof onInteract === 'function') {
+        const hits = raycaster.intersectObjects(interactiveTargets, true);
+        if (hits.length > 0) {
+            const playerPos = camera.getWorldPosition(new THREE.Vector3());
+            // Loosen distance check for mobile tap
+            if (playerPos.distanceTo(hits[0].point) < 8.0) {
+                onInteract(hits[0].object);
+                isDragging = false; // Reset drag state
+                return;
+            }
+        }
+    }
+
+    // If not dragging and no interaction, handle movement
     if (!isDragging) {
-        // It's a tap - handle movement
-        const touch = event.changedTouches[0];
-        const mouse = new THREE.Vector2();
-        mouse.x = (touch.clientX / window.innerWidth) * 2 - 1;
-        mouse.y = -(touch.clientY / window.innerHeight) * 2 + 1;
-
-        raycaster.setFromCamera(mouse, camera);
         const intersects = raycaster.intersectObjects(walkableObjects);
-
         if (intersects.length > 0) {
             const hit = intersects[0];
             const targetPosition = hit.point.clone();
@@ -178,22 +192,7 @@ export function setupControlEventListeners(container, controls, raycaster, camer
     if (isMobile) {
         const touchStartHandler = (e) => onTouchStart(e);
         const touchMoveHandler = (e) => onTouchMove(e, controls);
-        const touchEndHandler = (e) => {
-            e.preventDefault();
-            /* check interactive targets first */
-            if (interactiveTargets && interactiveTargets.length && typeof onInteract === 'function') {
-                const touch = e.changedTouches[0];
-                const mouse = new THREE.Vector2(
-                    (touch.clientX / window.innerWidth) * 2 - 1,
-                    -(touch.clientY / window.innerHeight) * 2 + 1
-                );
-                raycaster.setFromCamera(mouse, camera);
-                const hits = raycaster.intersectObjects(interactiveTargets, true);
-                const playerPos = controls.getObject().position;
-                if (hits.length && playerPos.distanceTo(hits[0].point) < 3.0) { onInteract(); return; }
-            }
-            onTouchEnd(e, raycaster, camera, walkableObjects, onTargetSet);
-        };
+        const touchEndHandler = (e) => onTouchEnd(e, raycaster, camera, walkableObjects, onTargetSet, interactiveTargets, onInteract);
 
         container.addEventListener('touchstart', touchStartHandler, { passive: false });
         container.addEventListener('touchmove', touchMoveHandler, { passive: false });

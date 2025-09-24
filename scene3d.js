@@ -16,9 +16,9 @@ let removeEventListeners = null;
 let interactRaycaster = null;
 let interactiveTargets = [];
 let doorOpening = false, doorOpened = false, doorAngle = 0;
-let doorHighlight = null, barnDoorMesh = null;
+let doorHighlight = null, barnDoorMesh = null, barnExitTrigger = null;
 let dollyActive = false, dollyT = 0, dollyStart = null, dollyEnd = null, lookTarget = null, barnGroupRef = null;
-let isInsideBarnView = false, initialBarnLookDirection = null;
+let isInsideBarnView = false;
 let isExitingBarn = false;
 
 /* add helper to detect if player is inside barn bounds */
@@ -53,22 +53,49 @@ function openDoor() {
     
     // Get door's world position to correctly align the path
     const doorWorldPos = new THREE.Vector3();
-    // The door mesh is inside the pivot, so we get the pivot's world position
     barnGroupRef.userData.doorPivot.getWorldPosition(doorWorldPos);
     
     const BARN_DEPTH = 18;
     const frontWallZ = barnGroupRef.position.z + BARN_DEPTH / 2;
 
+    const doorMidpoint = new THREE.Vector3(doorWorldPos.x, 1.7, frontWallZ + 1.5);
     dollyEnd = new THREE.Vector3(
-        doorWorldPos.x + 0.625, // Center on the door's opening
+        doorWorldPos.x + 0.625, // Centered on door opening
         1.7,
-        frontWallZ - 3.0 // Positioned 3 units inside from the front wall
+        frontWallZ - 3.0 // Positioned inside
     );
 
-    // Look into the barn, not at the door
+    // Look into the barn
     lookTarget = dollyEnd.clone();
-    lookTarget.z -= 10; // Look 10 units deeper into the barn from player's final position
-    dollyT = 0; dollyActive = true;
+    lookTarget.z -= 10;
+    
+    // Use an intermediate point for a better path
+    dollyStart = [playerObj.position.clone(), doorMidpoint];
+    dollyT = 0; 
+    dollyActive = true;
+}
+
+function exitBarn() {
+    if (dollyActive) return;
+    
+    isInsideBarnView = false;
+    isExitingBarn = true;
+    doorOpening = false; // allow door to close
+    dollyActive = true;
+    dollyT = 0;
+    
+    // The start point is the current (locked) position inside the barn
+    const currentPos = controls.getObject().position.clone();
+    
+    // The end point is where the dolly-in started from (or a safe spot)
+    const endPos = dollyStart[0].clone(); // dollyStart[0] holds the pre-entry position
+    
+    // swap for exit animation
+    dollyStart = [currentPos];
+    dollyEnd = endPos;
+    
+    // No look target on exit, player controls view
+    lookTarget = null;
 }
 
 function animate() {
@@ -85,31 +112,6 @@ function animate() {
     if (isInsideBarnView) {
         player.position.copy(dollyEnd); // Lock position
         velocity.x = 0; velocity.z = 0; isMovingToTarget = false; // Prevent movement
-
-        if (initialBarnLookDirection) {
-            const currentLookDirection = new THREE.Vector3();
-            camera.getWorldDirection(currentLookDirection);
-            currentLookDirection.y = 0;
-            currentLookDirection.normalize();
-
-            const angle = initialBarnLookDirection.angleTo(currentLookDirection);
-            const cross = new THREE.Vector3().crossVectors(initialBarnLookDirection, currentLookDirection);
-            const totalAngle = cross.y < 0 ? -angle : angle; // Get signed angle
-
-            if (Math.abs(totalAngle) > THREE.MathUtils.degToRad(120)) {
-                isInsideBarnView = false;
-                isExitingBarn = true;
-                doorOpening = false; // allow door to close
-                dollyActive = true;
-                dollyT = 0;
-                // Swap start and end for dolly-out animation
-                const temp = dollyStart;
-                dollyStart = dollyEnd;
-                dollyEnd = temp;
-                // No look target on exit, player controls view
-                lookTarget = null;
-            }
-        }
     } else if (isMobile && isMovingToTarget && targetPosition) {
         const distance = player.position.distanceTo(targetPosition);
         if (moveIndicator && moveIndicator.visible) {
@@ -200,11 +202,19 @@ function animate() {
     }
 
     prevTime = time;
-    // Dolly towards door and auto-look when opening
+    // Dolly logic
     if (dollyActive && controls) {
         dollyT = Math.min(1, dollyT + delta * 0.8);
         const playerObj = controls.getObject();
-        playerObj.position.lerpVectors(dollyStart, dollyEnd, THREE.MathUtils.smoothstep(dollyT, 0, 1));
+        const easedT = THREE.MathUtils.smoothstep(dollyT, 0, 1);
+
+        if (Array.isArray(dollyStart)) { // Multi-point path (for entering)
+            const p0 = dollyStart[0], p1 = dollyStart[1], p2 = dollyEnd;
+            const path = new THREE.QuadraticBezierCurve3(p0, p1, p2);
+            playerObj.position.copy(path.getPoint(easedT));
+        } else { // Single start point (for exiting)
+            playerObj.position.lerpVectors(dollyStart, dollyEnd, easedT);
+        }
 
         if (lookTarget) {
             const targetQuaternion = new THREE.Quaternion();
@@ -217,10 +227,6 @@ function animate() {
             dollyActive = false;
             if (!isExitingBarn) {
                 isInsideBarnView = true;
-                initialBarnLookDirection = new THREE.Vector3();
-                camera.getWorldDirection(initialBarnLookDirection);
-                initialBarnLookDirection.y = 0;
-                initialBarnLookDirection.normalize();
             } else {
                  isExitingBarn = false; // Dolly out finished
             }
@@ -242,7 +248,7 @@ export function initScene3D() {
     walkableObjects = [];
 
     doorOpening = false; doorOpened = false; doorAngle = 0;
-    isInsideBarnView = false; isExitingBarn = false; initialBarnLookDirection = null;
+    isInsideBarnView = false; isExitingBarn = false;
 
     // Scene
     scene = new THREE.Scene();
@@ -286,6 +292,10 @@ export function initScene3D() {
     barnGroupRef = barnGroup;
     if (barnGroup.userData?.doorPivot) {
         interactiveTargets = [barnGroup.userData.doorPivot];
+        if (barnGroup.userData.exitTrigger) {
+            barnExitTrigger = barnGroup.userData.exitTrigger;
+            interactiveTargets.push(barnExitTrigger);
+        }
         barnDoorMesh = barnGroup.userData.doorMesh;
         if (barnDoorMesh) barnDoorMesh.visible = true;
     }
@@ -309,16 +319,28 @@ export function initScene3D() {
 
     // Event listeners
     removeEventListeners = setupControlEventListeners(
-        container, controls, raycaster, camera, walkableObjects, onTargetSet, instructions, interactiveTargets, () => openDoor()
+        container, controls, raycaster, camera, walkableObjects, onTargetSet, instructions, interactiveTargets, (target) => {
+            if (target === barnExitTrigger) exitBarn();
+            else openDoor();
+        }
     );
 
     interactRaycaster = new THREE.Raycaster();
     const onMouseDown = () => {
-        if (!interactiveTargets.length) return;
+        if (!interactiveTargets.length || !controls) return;
+        
+        const interactableNow = isInsideBarnView ? [barnExitTrigger] : [barnGroupRef.userData.doorPivot];
+        if (!interactableNow[0]) return;
+
         const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
         interactRaycaster.set(camera.position, dir);
-        const hits = interactRaycaster.intersectObjects(interactiveTargets, true);
-        if (hits.length && controls && controls.getObject().position.distanceTo(hits[0].point) < 3.0) openDoor();
+        const hits = interactRaycaster.intersectObjects(interactableNow, true);
+        
+        if (isInsideBarnView) {
+            if (hits.length) exitBarn();
+        } else {
+             if (hits.length && controls.getObject().position.distanceTo(hits[0].point) < 3.0) openDoor();
+        }
     };
     container.addEventListener('mousedown', onMouseDown);
 

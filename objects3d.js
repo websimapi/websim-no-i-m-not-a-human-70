@@ -196,6 +196,17 @@ export function createBarn(textureLoader) {
         interiorWrap.rotation.y = Math.PI; // Face the wrap toward the door (+Z)
         barnGroup.add(interiorWrap);
 
+        // Invisible exit trigger plane
+        const exitTrigger = new THREE.Mesh(
+            new THREE.PlaneGeometry(2, 3), // approx size of door on texture
+            new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide })
+        );
+        // Position it on the inner surface where the door is rendered
+        exitTrigger.position.set(-3.8, 2.7, 7.8);
+        exitTrigger.rotation.y = Math.PI * 0.4;
+        barnGroup.add(exitTrigger);
+        barnGroup.userData.exitTrigger = exitTrigger;
+
         // Small angled awning above door
         const awning = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 0.6), roofMaterial);
         awning.position.set(doorX, doorY + 1.35, doorZ + 0.001);
