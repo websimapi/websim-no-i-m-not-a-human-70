@@ -18,6 +18,8 @@ let interactiveTargets = [];
 let doorOpening = false, doorOpened = false, doorAngle = 0;
 let doorHighlight = null, barnDoorMesh = null;
 let dollyActive = false, dollyT = 0, dollyStart = null, dollyEnd = null, lookTarget = null, barnGroupRef = null;
+let isInsideBarnView = false, initialBarnLookDirection = null;
+let isExitingBarn = false;
 
 /* add helper to detect if player is inside barn bounds */
 function isInsideBarn(pos) {
@@ -45,13 +47,16 @@ function onTargetSet(target, hitPoint) {
 function openDoor() {
     if (doorOpening || doorOpened || !barnDoorMesh || !barnGroupRef || !controls) return;
     doorOpening = true;
+    isExitingBarn = false;
     const playerObj = controls.getObject();
     const doorPos = new THREE.Vector3(); barnDoorMesh.getWorldPosition(doorPos);
     const frontDir = new THREE.Vector3().setFromMatrixColumn(barnGroupRef.matrixWorld, 2).normalize();
     const inwardDir = frontDir.clone().negate();
     dollyStart = playerObj.position.clone();
-    dollyEnd = doorPos.clone().add(inwardDir.multiplyScalar(3.5)); dollyEnd.y = 1.7;
-    const ip = barnGroupRef.userData?.interiorSurface; lookTarget = ip ? ip.getWorldPosition(new THREE.Vector3()) : doorPos.clone();
+    dollyEnd = doorPos.clone().add(inwardDir.multiplyScalar(2.0)); dollyEnd.y = 1.7;
+    const ip = barnGroupRef.userData?.interiorSurface;
+    lookTarget = ip ? ip.getWorldPosition(new THREE.Vector3()) : doorPos.clone();
+    lookTarget.y = 1.7; // look straight ahead
     dollyT = 0; dollyActive = true;
 }
 
@@ -66,7 +71,35 @@ function animate() {
     const delta = (time - prevTime) / 1000;
     const player = controls.getObject();
 
-    if (isMobile && isMovingToTarget && targetPosition) {
+    if (isInsideBarnView) {
+        player.position.copy(dollyEnd); // Lock position
+        velocity.x = 0; velocity.z = 0; isMovingToTarget = false; // Prevent movement
+
+        if (initialBarnLookDirection) {
+            const currentLookDirection = new THREE.Vector3();
+            camera.getWorldDirection(currentLookDirection);
+            currentLookDirection.y = 0;
+            currentLookDirection.normalize();
+
+            const angle = initialBarnLookDirection.angleTo(currentLookDirection);
+            const cross = new THREE.Vector3().crossVectors(initialBarnLookDirection, currentLookDirection);
+            const totalAngle = cross.y < 0 ? -angle : angle; // Get signed angle
+
+            if (Math.abs(totalAngle) > THREE.MathUtils.degToRad(120)) {
+                isInsideBarnView = false;
+                isExitingBarn = true;
+                doorOpening = false; // allow door to close
+                dollyActive = true;
+                dollyT = 0;
+                // Swap start and end for dolly-out animation
+                const temp = dollyStart;
+                dollyStart = dollyEnd;
+                dollyEnd = temp;
+                // No look target on exit, player controls view
+                lookTarget = null;
+            }
+        }
+    } else if (isMobile && isMovingToTarget && targetPosition) {
         const distance = player.position.distanceTo(targetPosition);
         if (moveIndicator && moveIndicator.visible) {
             const t = time * 0.004;
@@ -127,6 +160,17 @@ function animate() {
         if (Math.abs(doorAngle - target) < 0.02) { doorOpened = true; doorOpening = false; }
     }
 
+    if (isExitingBarn && !doorOpening) {
+        const targetAngle = 0; // Closed
+        doorAngle = THREE.MathUtils.damp(doorAngle, targetAngle, 4, delta);
+        const pivot = interactiveTargets[0];
+        if (pivot) pivot.rotation.y = doorAngle;
+        if (Math.abs(doorAngle - targetAngle) < 0.02) {
+            doorOpened = false;
+            if(!dollyActive) isExitingBarn = false; // Stop closing when shut and dolly is done
+        }
+    }
+
     // Door proximity highlight + pointer cursor
     if (doorHighlight && barnDoorMesh && !doorOpening && !doorOpened) {
         const doorPos = new THREE.Vector3(); barnDoorMesh.getWorldPosition(doorPos);
@@ -150,8 +194,26 @@ function animate() {
         dollyT = Math.min(1, dollyT + delta * 0.8);
         const playerObj = controls.getObject();
         playerObj.position.lerpVectors(dollyStart, dollyEnd, THREE.MathUtils.smoothstep(dollyT, 0, 1));
-        // keep current facing; do not auto-rotate the camera
-        if (dollyT >= 1) dollyActive = false;
+
+        if (lookTarget) {
+            const targetQuaternion = new THREE.Quaternion();
+            const tempMatrix = new THREE.Matrix4().lookAt(playerObj.position, lookTarget, playerObj.up);
+            targetQuaternion.setFromRotationMatrix(tempMatrix);
+            playerObj.quaternion.slerp(targetQuaternion, delta * 2.5);
+        }
+
+        if (dollyT >= 1) {
+            dollyActive = false;
+            if (!isExitingBarn) {
+                isInsideBarnView = true;
+                initialBarnLookDirection = new THREE.Vector3();
+                camera.getWorldDirection(initialBarnLookDirection);
+                initialBarnLookDirection.y = 0;
+                initialBarnLookDirection.normalize();
+            } else {
+                 isExitingBarn = false; // Dolly out finished
+            }
+        }
     }
     if (renderer && scene && camera) renderer.render(scene, camera);
 }
@@ -169,6 +231,7 @@ export function initScene3D() {
     walkableObjects = [];
 
     doorOpening = false; doorOpened = false; doorAngle = 0;
+    isInsideBarnView = false; isExitingBarn = false; initialBarnLookDirection = null;
 
     // Scene
     scene = new THREE.Scene();

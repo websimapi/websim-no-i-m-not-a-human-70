@@ -188,7 +188,7 @@ export function createBarn(textureLoader) {
             new THREE.CylinderGeometry(radius, radius, BARN_WIDTH - 0.4, 64, 1, true, -Math.PI/2, thetaLen),
             new THREE.MeshBasicMaterial({ map: interiorTex, side: THREE.BackSide })
         );
-        interiorWrap.position.set(0, WALL_HEIGHT/2, BARN_DEPTH/2 - radius - 0.1);
+        interiorWrap.position.set(0, WALL_HEIGHT/2, BARN_DEPTH/2 - radius - 0.2);
         interiorWrap.rotation.y = Math.PI; // Face the wrap toward the door (+Z)
         barnGroup.add(interiorWrap);
 

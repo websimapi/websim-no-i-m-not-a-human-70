@@ -66,11 +66,11 @@ function onTouchMove(event, controls) {
     const deltaY = touch.clientY - touchStartY;
 
     // Mark as dragging if movement is significant
-    if (Math.abs(deltaX) > 3 || Math.abs(deltaY) > 3) {
+    if (!isDragging && (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5)) {
         isDragging = true;
     }
 
-    if (isDragging && controls) {
+    if (controls) {
         const playerObject = controls.getObject();
         euler.setFromQuaternion(playerObject.quaternion);
 
