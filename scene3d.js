@@ -65,13 +65,12 @@ function openDoor() {
     dollyStart = playerObj.position.clone();
     
     // Get door's world position to correctly align the path
-    const doorWorldPos = new THREE.Vector3();
-    barnGroupRef.userData.doorPivot.getWorldPosition(doorWorldPos);
+    const doorWorldCenter = barnGroupRef.userData.doorCenter.clone().applyMatrix4(barnGroupRef.matrixWorld);
     
     const BARN_DEPTH = 18;
     const frontWallZ = barnGroupRef.position.z + BARN_DEPTH / 2;
 
-    const doorMidpoint = new THREE.Vector3(doorWorldPos.x, 1.7, frontWallZ + 1.5);
+    const doorMidpoint = new THREE.Vector3(doorWorldCenter.x, 1.7, frontWallZ + 1.5);
     
     // Path to the center of the barn's width, just inside the door.
     dollyEnd = new THREE.Vector3(
@@ -135,7 +134,7 @@ function animate() {
     const delta = (time - prevTime) / 1000;
     const player = controls.getObject();
     
-    const canMoveToTarget = (isMobile || isInsideBarnView) && isMovingToTarget && targetPosition;
+    const canMoveToTarget = (isMobile || isInsideBarnView) && isMovingToTarget && targetPosition && !dollyActive;
 
     if (isInsideBarnView) {
         if (isMobile) {
