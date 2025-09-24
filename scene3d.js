@@ -49,16 +49,19 @@ function openDoor() {
     doorOpening = true;
     isExitingBarn = false;
     const playerObj = controls.getObject();
-    const doorPos = new THREE.Vector3(); barnDoorMesh.getWorldPosition(doorPos);
     dollyStart = playerObj.position.clone();
     
-    // New dollyEnd calculation for centered position
+    // Get door's world position to correctly align the path
+    const doorWorldPos = new THREE.Vector3();
+    // The door mesh is inside the pivot, so we get the pivot's world position
+    barnGroupRef.userData.doorPivot.getWorldPosition(doorWorldPos);
+    
     const BARN_DEPTH = 18;
-    const barnCenter = barnGroupRef.position.clone(); // Barn is at (0, 0, -15)
-    const frontWallZ = barnCenter.z + BARN_DEPTH / 2; // Z position of the front wall
+    const frontWallZ = barnGroupRef.position.z + BARN_DEPTH / 2;
+
     dollyEnd = new THREE.Vector3(
-        barnCenter.x, // Centered on X
-        1.7,          // Player height
+        doorWorldPos.x + 0.625, // Center on the door's opening
+        1.7,
         frontWallZ - 3.0 // Positioned 3 units inside from the front wall
     );
 
