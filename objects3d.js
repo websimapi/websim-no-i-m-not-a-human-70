@@ -183,12 +183,12 @@ export function createBarn(textureLoader) {
 
         // Panoramic 180° interior wrap (inward-facing half cylinder)
         interiorTex.wrapS = THREE.RepeatWrapping; interiorTex.wrapT = THREE.ClampToEdgeWrapping; interiorTex.needsUpdate = true;
-        const radius = 5.5, thetaLen = Math.PI;
+        const radius = 5.0, thetaLen = Math.PI; // a bit smaller radius
         const interiorWrap = new THREE.Mesh(
             new THREE.CylinderGeometry(radius, radius, BARN_WIDTH - 0.4, 64, 1, true, -Math.PI/2, thetaLen),
             new THREE.MeshBasicMaterial({ map: interiorTex, side: THREE.BackSide })
         );
-        interiorWrap.position.set(0, WALL_HEIGHT/2, BARN_DEPTH/2 - radius - 0.2);
+        interiorWrap.position.set(0, WALL_HEIGHT/2, BARN_DEPTH/2 - radius - 0.1); // a bit closer
         interiorWrap.rotation.y = Math.PI; // Face the wrap toward the door (+Z)
         barnGroup.add(interiorWrap);
 
