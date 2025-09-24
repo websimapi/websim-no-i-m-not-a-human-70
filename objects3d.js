@@ -41,6 +41,10 @@ export function createBarn(textureLoader) {
     const wallMaterial = new THREE.MeshStandardMaterial({ map: barnWallTexture });
     const roofMaterial = new THREE.MeshStandardMaterial({ map: barnRoofTexture });
     const windowMaterial = new THREE.MeshBasicMaterial({ color: 0x050505 });
+    
+    // Create a separate material for the interior-facing walls to ensure they are visible.
+    const interiorWallMaterial = wallMaterial.clone();
+    interiorWallMaterial.side = THREE.DoubleSide;
 
     const barnGroup = new THREE.Group();
     const BARN_WIDTH = 12;
@@ -166,19 +170,19 @@ export function createBarn(textureLoader) {
         const facadeZ = BARN_DEPTH / 2 + 0.001;
         const leftW = (doorX - doorW/2) - (-BARN_WIDTH/2);
         if (leftW > 0.01) {
-            const leftSeg = new THREE.Mesh(new THREE.PlaneGeometry(leftW, WALL_HEIGHT), sideMat);
+            const leftSeg = new THREE.Mesh(new THREE.PlaneGeometry(leftW, WALL_HEIGHT), interiorWallMaterial);
             leftSeg.position.set(-BARN_WIDTH/2 + leftW/2, WALL_HEIGHT/2, facadeZ); barnGroup.add(leftSeg);
         }
         const rightW = (BARN_WIDTH/2) - (doorX + doorW/2);
         if (rightW > 0.01) {
-            const rightSeg = new THREE.Mesh(new THREE.PlaneGeometry(rightW, WALL_HEIGHT), sideMat);
+            const rightSeg = new THREE.Mesh(new THREE.PlaneGeometry(rightW, WALL_HEIGHT), interiorWallMaterial);
             rightSeg.position.set(doorX + doorW/2 + rightW/2, WALL_HEIGHT/2, facadeZ); barnGroup.add(rightSeg);
         }
         const topH = Math.max(0.01, WALL_HEIGHT - (doorY + doorH/2));
-        const topSeg = new THREE.Mesh(new THREE.PlaneGeometry(doorW, topH), sideMat);
+        const topSeg = new THREE.Mesh(new THREE.PlaneGeometry(doorW, topH), interiorWallMaterial);
         topSeg.position.set(doorX, doorY + doorH/2 + topH/2, facadeZ); barnGroup.add(topSeg);
         const bottomH = Math.max(0.01, (doorY - doorH/2));
-        const botSeg = new THREE.Mesh(new THREE.PlaneGeometry(doorW, bottomH), sideMat);
+        const botSeg = new THREE.Mesh(new THREE.PlaneGeometry(doorW, bottomH), interiorWallMaterial);
         botSeg.position.set(doorX, bottomH/2, facadeZ); barnGroup.add(botSeg);
 
         // Panoramic 180° interior wrap (inward-facing half cylinder)
