@@ -21,6 +21,9 @@ let dollyActive = false, dollyT = 0, dollyStart = null, dollyEnd = null, lookTar
 let isInsideBarnView = false;
 let exitState = 'IDLE'; // 'IDLE', 'OPENING_DOOR', 'DOLLY_OUT', 'CLOSING_DOOR'
 
+// Hardcoded door center X from objects3d.js definition
+const DOOR_CENTER_X = -2.5;
+
 /* add helper to detect if player is inside barn bounds */
 function isInsideBarn(pos) {
   if (!barnGroupRef) return false;
@@ -77,15 +80,20 @@ function openDoor(isExiting = false) {
     const doorWorldPos = new THREE.Vector3();
     barnGroupRef.userData.doorPivot.getWorldPosition(doorWorldPos);
     
+    const BARN_WIDTH = 12;
     const BARN_DEPTH = 18;
     const frontWallZ = barnGroupRef.position.z + BARN_DEPTH / 2;
     
     let p1Position; // Control point for the Bezier curve
     
     if (isExiting) {
-        // Exit Path: currentPos -> P1 (outside door midpoint) -> P2 (pre-entry position)
-        // P1: Use a point slightly outside the door, near the center line of the barn group.
-        p1Position = new THREE.Vector3(barnGroupRef.position.x, 1.7, frontWallZ + 1.5); 
+        // Exit Path: currentPos -> P1 (doorway) -> P2 (pre-entry position)
+        
+        // Determine the horizontal center of the door opening
+        const doorCenterX = barnGroupRef.position.x + DOOR_CENTER_X; // Should be -2.5
+        
+        // P1: Use a point slightly outside the door, centered on the doorway.
+        p1Position = new THREE.Vector3(doorCenterX, 1.7, frontWallZ + 1.5); 
         
         const endPos = dollyStart[0].clone(); // dollyStart[0] holds the pre-entry position from the last successful entry
         dollyStart = [playerStartPos, p1Position]; // P0, P1 control point
@@ -108,7 +116,7 @@ function openDoor(isExiting = false) {
         );
 
         dollyEnd = new THREE.Vector3(
-            barnGroupRef.position.x, // Centered on barn's X
+            barnGroupRef.position.x + DOOR_CENTER_X, // Centered on door opening X internally
             1.7,
             frontWallZ - 3.5 // Positioned inside
         );
