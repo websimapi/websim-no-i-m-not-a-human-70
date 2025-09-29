@@ -258,6 +258,7 @@ function animate() {
             doorOpened = true; 
             doorOpening = false; 
             initializeColliders(barnGroupRef, true); // Re-init colliders with door open
+            if (barnGroupRef.userData.interiorSurface) initializeBarnInteriorCollider(barnGroupRef.userData.interiorSurface);
 
             if (exitState === 'OPENING_DOOR') {
                  // Exit Phase 1 -> Phase 2: Start dolly movement
@@ -278,6 +279,7 @@ function animate() {
         if (Math.abs(doorAngle - targetAngle) < 0.02) {
             doorOpened = false;
             initializeColliders(barnGroupRef, false); // Re-init colliders with door closed
+            if (barnGroupRef.userData.interiorSurface) initializeBarnInteriorCollider(barnGroupRef.userData.interiorSurface);
             exitState = 'IDLE'; // Done closing
         }
     }
