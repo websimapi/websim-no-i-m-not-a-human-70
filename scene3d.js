@@ -73,37 +73,59 @@ function openDoor(isExiting = false) {
     const playerObj = controls.getObject();
     const playerStartPos = playerObj.position.clone();
     
-    // Get door's world position to correctly align the path
+    // Get door's world position (hinge) to correctly align the path
     const doorWorldPos = new THREE.Vector3();
     barnGroupRef.userData.doorPivot.getWorldPosition(doorWorldPos);
     
     const BARN_DEPTH = 18;
     const frontWallZ = barnGroupRef.position.z + BARN_DEPTH / 2;
-
-    const doorMidpoint = new THREE.Vector3(doorWorldPos.x, 1.7, frontWallZ + 1.5);
+    
+    let p1Position; // Control point for the Bezier curve
     
     if (isExiting) {
-        // Exit Path: currentPos -> doorMidpoint -> pre-entry position (stored in dollyStart[0] from entry)
+        // Exit Path: currentPos -> P1 (outside door midpoint) -> P2 (pre-entry position)
+        // P1: Use a point slightly outside the door, near the center line of the barn group.
+        p1Position = new THREE.Vector3(barnGroupRef.position.x, 1.7, frontWallZ + 1.5); 
+        
         const endPos = dollyStart[0].clone(); // dollyStart[0] holds the pre-entry position from the last successful entry
-        dollyStart = [playerStartPos, doorMidpoint]; // Start and control points
+        dollyStart = [playerStartPos, p1Position]; // P0, P1 control point
         dollyEnd = endPos; // Final destination
         lookTarget = null; // Player controls view on exit
     } else {
-        // Entry Path: playerStartPos -> doorMidpoint -> inside barn
+        // Entry Path: P0 (start) -> P1 (retreat/side, away from swing) -> P2 (inside barn)
+        
+        // Define P1: Move player towards the hinge side (X_hinge - 0.5) and pull them back (Z_start + 1.5)
+        const hingeX = doorWorldPos.x; // approx -3.125
+        const retreatZ = playerStartPos.z + 1.5; 
+
+        // Cap retreat point to be outside the wall face (Z > frontWallZ)
+        const safeRetreatZ = Math.min(retreatZ, frontWallZ + 2.5); // 2.5 units in front of wall Z = -6
+
+        p1Position = new THREE.Vector3(
+            hingeX - 0.5, // Ensure we are slightly beyond the hinge on the safe side
+            1.7,
+            safeRetreatZ 
+        );
+
         dollyEnd = new THREE.Vector3(
             barnGroupRef.position.x, // Centered on barn's X
             1.7,
             frontWallZ - 3.5 // Positioned inside
         );
+        
         // Store entry point (P0) for later exit path planning.
         const entryStartPos = playerStartPos.clone();
-        dollyStart = [entryStartPos, doorMidpoint];
+        dollyStart = [entryStartPos, p1Position];
+        
+        // Player looks slightly further inside
         lookTarget = dollyEnd.clone();
         lookTarget.z -= 10;
+        
+        // START DOLLY IMMEDIATELY ON ENTRY
+        dollyActive = true; 
     }
     
     dollyT = 0; 
-    dollyActive = false; // Dolly starts only when door is open
 }
 
 function startDoorClose() {
@@ -220,7 +242,7 @@ function animate() {
     // Door opening animation
     if (doorOpening && !doorOpened) {
         const target = -Math.PI * 0.65;
-        doorAngle = THREE.MathUtils.damp(doorAngle, target, 6, delta);
+        doorAngle = THREE.MathUtils.damp(doorAngle, target, 8, delta); // Increased damping factor for faster swing
         const pivot = interactiveTargets[0];
         if (pivot) pivot.rotation.y = doorAngle;
         // keep the physical door visible while it swings and after it opens
@@ -233,9 +255,8 @@ function animate() {
                  // Exit Phase 1 -> Phase 2: Start dolly movement
                  dollyActive = true;
                  exitState = 'DOLLY_OUT';
-            } else if (!isInsideBarnView) {
-                // Entry Phase 1 -> Phase 2: Start dolly movement
-                dollyActive = true;
+            } else if (!isInsideBarnView && dollyActive) {
+                // Entry Phase 1 (Door Open) complete. Dolly continues.
             }
         }
     }
@@ -243,7 +264,7 @@ function animate() {
     // Door closing animation (used for auto-close after entry or mandated exit close)
     if (exitState === 'CLOSING_DOOR') {
         const targetAngle = 0; // Closed
-        doorAngle = THREE.MathUtils.damp(doorAngle, targetAngle, 4, delta);
+        doorAngle = THREE.MathUtils.damp(doorAngle, targetAngle, 6, delta); // Increased damping factor for faster close
         const pivot = interactiveTargets[0];
         if (pivot) pivot.rotation.y = doorAngle;
         if (Math.abs(doorAngle - targetAngle) < 0.02) {
@@ -272,7 +293,7 @@ function animate() {
     prevTime = time;
     // Dolly logic
     if (dollyActive && controls) {
-        dollyT = Math.min(1, dollyT + delta * 0.8);
+        dollyT = Math.min(1, dollyT + delta * 1.0); // Increased dolly speed
         const playerObj = controls.getObject();
         const easedT = THREE.MathUtils.smoothstep(dollyT, 0, 1);
 
@@ -322,7 +343,7 @@ function animate() {
                 // Trigger automatic close after entry
                 setTimeout(() => {
                     startDoorClose();
-                }, 3000); 
+                }, 1500); // Reduced delay for faster closing
             }
         }
     }
