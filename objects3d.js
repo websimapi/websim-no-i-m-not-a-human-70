@@ -147,11 +147,47 @@ export function createBarn(textureLoader) {
         const doorX = -2.5, doorY = 1.1, doorZ = BARN_DEPTH / 2 + 0.02;
         const doorW = 1.25, doorH = 2.2;
         const doorMat = new THREE.MeshStandardMaterial({ color: 0x3a2f2a, roughness: 0.92, metalness: 0.06, side: THREE.DoubleSide });
-        const door = new THREE.Mesh(new THREE.PlaneGeometry(doorW, doorH), doorMat);
+
+        const winW = 0.65, winH = 0.42;
+        const winCenterX = doorW/2, winCenterY = 0.55;
+
+        const doorFrameGroup = new THREE.Group();
+        doorFrameGroup.castShadow = true;
+        doorFrameGroup.receiveShadow = false;
+        
+        // Top segment
+        const topH = (doorH / 2) - (winCenterY + winH / 2);
+        if (topH > 0.01) {
+            const topSeg = new THREE.Mesh(new THREE.PlaneGeometry(doorW, topH), doorMat);
+            topSeg.position.set(doorW/2, (winCenterY + winH/2 + topH/2), 0);
+            doorFrameGroup.add(topSeg);
+        }
+
+        // Bottom segment
+        const bottomH = (winCenterY - winH / 2) + doorH / 2;
+        if (bottomH > 0.01) {
+            const bottomSeg = new THREE.Mesh(new THREE.PlaneGeometry(doorW, bottomH), doorMat);
+            bottomSeg.position.set(doorW/2, (-doorH/2 + bottomH/2), 0);
+            doorFrameGroup.add(bottomSeg);
+        }
+
+        // Left segment (beside window)
+        const sideW = (doorW - winW) / 2;
+        if (sideW > 0.01) {
+            const leftSeg = new THREE.Mesh(new THREE.PlaneGeometry(sideW, winH), doorMat);
+            leftSeg.position.set(sideW/2, winCenterY, 0);
+            doorFrameGroup.add(leftSeg);
+        }
+        
+        // Right segment (beside window)
+        if (sideW > 0.01) {
+            const rightSeg = new THREE.Mesh(new THREE.PlaneGeometry(sideW, winH), doorMat);
+            rightSeg.position.set(doorW - sideW/2, winCenterY, 0);
+            doorFrameGroup.add(rightSeg);
+        }
+        
         doorPivot.position.set(doorX - doorW/2, doorY, doorZ); // hinge at left side
-        door.position.set(doorW/2, 0, 0); // offset relative to hinge
-        door.castShadow = true; door.receiveShadow = false;
-        doorPivot.add(door);
+        doorPivot.add(doorFrameGroup);
 
         const frameMat = new THREE.MeshBasicMaterial({ 
             color: 0x1e1a18, transparent: true, opacity: 0.0, depthWrite: false 
@@ -159,12 +195,22 @@ export function createBarn(textureLoader) {
         const frame = new THREE.Mesh(new THREE.PlaneGeometry(1.32, 2.28), frameMat);
         frame.position.set(doorX, doorY, doorZ + 0.001); barnGroup.add(frame);
 
+        // This is now just the glass pane, with a glassy material
         const windowGlass = new THREE.Mesh(
-            new THREE.PlaneGeometry(0.65, 0.42),
-            new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.0, depthWrite: false })
+            new THREE.PlaneGeometry(winW, winH),
+            new THREE.MeshStandardMaterial({
+                color: 0x99aaff,
+                transparent: true,
+                opacity: 0.1,
+                roughness: 0.15,
+                metalness: 0.2,
+                side: THREE.DoubleSide,
+                depthWrite: false, // Important for transparency sorting
+            })
         );
-        windowGlass.position.set(doorX, doorY + 0.55, doorZ + 0.002);
-        barnGroup.add(windowGlass);
+        // Position it within the door frame, relative to the pivot
+        windowGlass.position.set(winCenterX, winCenterY, 0);
+        doorPivot.add(windowGlass);
 
         // Real opening in front wall: segment the facade around the door
         const facadeZ = BARN_DEPTH / 2 + 0.001;
@@ -204,7 +250,7 @@ export function createBarn(textureLoader) {
 
         barnGroup.add(doorPivot);
         barnGroup.userData.doorPivot = doorPivot;
-        barnGroup.userData.doorMesh = door;
+        barnGroup.userData.doorMesh = doorFrameGroup; // Now the group is the door mesh
         // store reference if needed later
         barnGroup.userData.interiorSurface = interiorWrap;
     }
