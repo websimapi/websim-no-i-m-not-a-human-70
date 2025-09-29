@@ -91,34 +91,40 @@ function openDoor() {
 
 function exitBarn() {
     if (dollyActive) return;
-    
+
     isInsideBarnView = false;
     isExitingBarn = true;
     doorOpening = false; // allow door to close
     dollyActive = true;
     dollyT = 0;
-    
-    // The start point is the current (locked) position inside the barn
+
     const playerObj = controls.getObject();
     const currentPos = playerObj.position.clone();
-    
-    // The end point is where the dolly-in started from (or a safe spot)
     const endPos = dollyStart[0].clone(); // dollyStart[0] holds the pre-entry position
+
+    // Reconstruct a path that goes through the door
+    const doorWorldPos = new THREE.Vector3();
+    barnGroupRef.userData.doorPivot.getWorldPosition(doorWorldPos);
+    const BARN_DEPTH = 18;
+    const frontWallZ = barnGroupRef.position.z + BARN_DEPTH / 2;
     
-    // swap for exit animation
-    dollyStart = [currentPos];
-    dollyEnd = endPos;
-    
+    // The same intermediate point used for entering, just outside the door
+    const doorMidpoint = new THREE.Vector3(doorWorldPos.x, 1.7, frontWallZ + 1.5);
+
+    // Path is: currentPos -> doorMidpoint -> endPos
+    dollyStart = [currentPos, doorMidpoint]; // Start and control points
+    dollyEnd = endPos; // Final destination
+
     // No look target on exit, player controls view
     lookTarget = null;
-    
+
     // Clear any movement target when exiting
     isMovingToTarget = false;
-    if(moveIndicator) moveIndicator.visible = false;
-    
+    if (moveIndicator) moveIndicator.visible = false;
+
     // Re-enable pointer lock for desktop on exit
     if (!isMobile) {
-        if(document.pointerLockElement) document.exitPointerLock();
+        if (document.pointerLockElement) document.exitPointerLock();
         setTimeout(() => controls.lock(), 100);
     }
 }
