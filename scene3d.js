@@ -19,7 +19,7 @@ let doorOpening = false, doorOpened = false, doorAngle = 0;
 let doorHighlight = null, barnDoorMesh = null, barnExitTrigger = null;
 let dollyActive = false, dollyT = 0, dollyStart = null, dollyEnd = null, lookTarget = null, barnGroupRef = null;
 let isInsideBarnView = false;
-let isExitingBarn = false;
+let exitState = 'IDLE'; // 'IDLE', 'OPENING_DOOR', 'DOLLY_OUT', 'CLOSING_DOOR'
 
 /* add helper to detect if player is inside barn bounds */
 function isInsideBarn(pos) {
@@ -55,13 +55,23 @@ function onTargetSet(target, hitPoint) {
 }
 
 /* add reusable opener so desktop and mobile share it */
-function openDoor() {
+function openDoor(isExiting = false) {
     if (doorOpening || doorOpened || !barnDoorMesh || !barnGroupRef || !controls) return;
-    doorOpening = true;
-    isExitingBarn = false;
-    initializeColliders(barnGroupRef, true); // Re-init colliders with door open
+    if (exitState !== 'IDLE' && !isExiting) return; // Cannot interrupt exit/close sequence if trying to enter
+
+    // If entering, ensure player is outside
+    if (!isExiting && isInsideBarnView) return; 
+    // If exiting, ensure player is inside
+    if (isExiting && !isInsideBarnView) return;
+
+    if (isExiting) {
+        exitState = 'OPENING_DOOR';
+    }
+    
+    doorOpening = true; // Initiate physical door open
+    
     const playerObj = controls.getObject();
-    dollyStart = playerObj.position.clone();
+    const playerStartPos = playerObj.position.clone();
     
     // Get door's world position to correctly align the path
     const doorWorldPos = new THREE.Vector3();
@@ -72,69 +82,61 @@ function openDoor() {
 
     const doorMidpoint = new THREE.Vector3(doorWorldPos.x, 1.7, frontWallZ + 1.5);
     
-    // Path to the center of the barn's width, just inside the door.
-    dollyEnd = new THREE.Vector3(
-        barnGroupRef.position.x, // Centered on barn's X
-        1.7,
-        frontWallZ - 3.5 // Positioned inside
-    );
-
-    // Look into the barn
-    lookTarget = dollyEnd.clone();
-    lookTarget.z -= 10;
+    if (isExiting) {
+        // Exit Path: currentPos -> doorMidpoint -> pre-entry position (stored in dollyStart[0] from entry)
+        const endPos = dollyStart[0].clone(); // dollyStart[0] holds the pre-entry position from the last successful entry
+        dollyStart = [playerStartPos, doorMidpoint]; // Start and control points
+        dollyEnd = endPos; // Final destination
+        lookTarget = null; // Player controls view on exit
+    } else {
+        // Entry Path: playerStartPos -> doorMidpoint -> inside barn
+        dollyEnd = new THREE.Vector3(
+            barnGroupRef.position.x, // Centered on barn's X
+            1.7,
+            frontWallZ - 3.5 // Positioned inside
+        );
+        // Store entry point (P0) for later exit path planning.
+        const entryStartPos = playerStartPos.clone();
+        dollyStart = [entryStartPos, doorMidpoint];
+        lookTarget = dollyEnd.clone();
+        lookTarget.z -= 10;
+    }
     
-    // Use an intermediate point for a better path
-    dollyStart = [playerObj.position.clone(), doorMidpoint];
     dollyT = 0; 
-    dollyActive = true;
+    dollyActive = false; // Dolly starts only when door is open
 }
 
 function startDoorClose() {
     // Only close if the door is open, we are inside, and we aren't already closing/exiting.
-    if (doorOpened && !dollyActive && isInsideBarnView && !isExitingBarn) {
-        // We reuse isExitingBarn flag for the closing animation logic.
-        isExitingBarn = true;
+    if (doorOpened && !dollyActive && isInsideBarnView && exitState === 'IDLE') {
+        exitState = 'CLOSING_DOOR';
     }
 }
 
 function exitBarn() {
-    if (dollyActive) return;
+    if (exitState !== 'IDLE' || dollyActive || !isInsideBarnView) return;
 
-    isInsideBarnView = false;
-    isExitingBarn = true;
-    doorOpening = false; // allow door to close
-    dollyActive = true;
-    dollyT = 0;
-
-    const playerObj = controls.getObject();
-    const currentPos = playerObj.position.clone();
-    const endPos = dollyStart[0].clone(); // dollyStart[0] holds the pre-entry position
-
-    // Reconstruct a path that goes through the door
-    const doorWorldPos = new THREE.Vector3();
-    barnGroupRef.userData.doorPivot.getWorldPosition(doorWorldPos);
-    const BARN_DEPTH = 18;
-    const frontWallZ = barnGroupRef.position.z + BARN_DEPTH / 2;
-    
-    // The same intermediate point used for entering, just outside the door
-    const doorMidpoint = new THREE.Vector3(doorWorldPos.x, 1.7, frontWallZ + 1.5);
-
-    // Path is: currentPos -> doorMidpoint -> endPos
-    dollyStart = [currentPos, doorMidpoint]; // Start and control points
-    dollyEnd = endPos; // Final destination
-
-    // No look target on exit, player controls view
-    lookTarget = null;
+    // IMPORTANT: If dollyStart is not populated (i.e., we somehow loaded directly into the barn), 
+    // we need a safe exit point. We assume dollyStart[0] holds the external position near the door (5 units outside).
+    if (!dollyStart || !Array.isArray(dollyStart) || dollyStart.length === 0 || dollyStart.length === 1) {
+        const doorWorldPos = new THREE.Vector3();
+        if (barnGroupRef && barnGroupRef.userData.doorPivot) barnGroupRef.userData.doorPivot.getWorldPosition(doorWorldPos);
+        else doorWorldPos.set(0, 1.7, -15); // Fallback if barnRef is missing
+        
+        // Define a pseudo-start position for the exit path
+        const safeExitPos = new THREE.Vector3(doorWorldPos.x, 1.7, doorWorldPos.z + 5);
+        dollyStart = [safeExitPos]; 
+        
+        // Temporarily move player to a point slightly inside the door to ensure path works (fallback only)
+        const BARN_DEPTH = 18;
+        controls.getObject().position.set(barnGroupRef.position.x, 1.7, barnGroupRef.position.z + BARN_DEPTH / 2 - 2.5);
+    }
 
     // Clear any movement target when exiting
     isMovingToTarget = false;
     if (moveIndicator) moveIndicator.visible = false;
-
-    // Re-enable pointer lock for desktop on exit
-    if (!isMobile) {
-        if (document.pointerLockElement) document.exitPointerLock();
-        setTimeout(() => controls.lock(), 100);
-    }
+    
+    openDoor(true);
 }
 
 function animate() {
@@ -225,10 +227,21 @@ function animate() {
         if (Math.abs(doorAngle - target) < 0.02) { 
             doorOpened = true; 
             doorOpening = false; 
+            initializeColliders(barnGroupRef, true); // Re-init colliders with door open
+
+            if (exitState === 'OPENING_DOOR') {
+                 // Exit Phase 1 -> Phase 2: Start dolly movement
+                 dollyActive = true;
+                 exitState = 'DOLLY_OUT';
+            } else if (!isInsideBarnView) {
+                // Entry Phase 1 -> Phase 2: Start dolly movement
+                dollyActive = true;
+            }
         }
     }
 
-    if (isExitingBarn && !doorOpening) {
+    // Door closing animation (used for auto-close after entry or mandated exit close)
+    if (exitState === 'CLOSING_DOOR') {
         const targetAngle = 0; // Closed
         doorAngle = THREE.MathUtils.damp(doorAngle, targetAngle, 4, delta);
         const pivot = interactiveTargets[0];
@@ -236,7 +249,7 @@ function animate() {
         if (Math.abs(doorAngle - targetAngle) < 0.02) {
             doorOpened = false;
             initializeColliders(barnGroupRef, false); // Re-init colliders with door closed
-            if(!dollyActive) isExitingBarn = false; // Stop closing when shut and dolly is done
+            exitState = 'IDLE'; // Done closing
         }
     }
 
@@ -263,15 +276,16 @@ function animate() {
         const playerObj = controls.getObject();
         const easedT = THREE.MathUtils.smoothstep(dollyT, 0, 1);
 
-        if (Array.isArray(dollyStart)) { // Multi-point path (for entering)
+        if (Array.isArray(dollyStart) && dollyStart.length === 2) { 
             const p0 = dollyStart[0], p1 = dollyStart[1], p2 = dollyEnd;
             const path = new THREE.QuadraticBezierCurve3(p0, p1, p2);
             playerObj.position.copy(path.getPoint(easedT));
-        } else { // Single start point (for exiting)
-            playerObj.position.lerpVectors(dollyStart, dollyEnd, easedT);
+        } else { // Fallback/Single point
+             playerObj.position.lerpVectors(playerObj.position, dollyEnd, easedT); 
         }
 
-        if (lookTarget) {
+        // Handle look target for entry only
+        if (lookTarget && exitState !== 'DOLLY_OUT') { 
             const targetQuaternion = new THREE.Quaternion();
             const tempMatrix = new THREE.Matrix4().lookAt(playerObj.position, lookTarget, playerObj.up);
             targetQuaternion.setFromRotationMatrix(tempMatrix);
@@ -280,19 +294,35 @@ function animate() {
 
         if (dollyT >= 1) {
             dollyActive = false;
-            if (!isExitingBarn) {
+            dollyT = 0; // Reset for next use
+            
+            if (exitState === 'DOLLY_OUT') {
+                // Exit finished: Phase 2 -> Phase 3: Start closing door
+                exitState = 'CLOSING_DOOR';
+                
+                // Final destination is outside the barn
+                isInsideBarnView = false;
+
+                if (!isMobile) {
+                    // Re-enable pointer lock for desktop after exiting the barn
+                    if (document.pointerLockElement) document.exitPointerLock();
+                    setTimeout(() => controls.lock(), 100);
+                }
+            } else { 
+                // Entry sequence finished
                 isInsideBarnView = true;
+
                 if (!isMobile && controls.isLocked) {
                     controls.unlock();
                 }
                 
-                // --- NEW CODE: Trigger automatic close after entry ---
+                // Transition to IDLE state (ready for exit or auto-close)
+                exitState = 'IDLE';
+
+                // Trigger automatic close after entry
                 setTimeout(() => {
                     startDoorClose();
-                }, 3000); // 3 seconds delay before closing
-                // -----------------------------------------------------
-            } else {
-                 isExitingBarn = false; // Dolly out finished
+                }, 3000); 
             }
         }
     }
@@ -312,7 +342,8 @@ export function initScene3D() {
     walkableObjects = [];
 
     doorOpening = false; doorOpened = false; doorAngle = 0;
-    isInsideBarnView = false; isExitingBarn = false;
+    isInsideBarnView = false; 
+    exitState = 'IDLE'; // Reset state machine
 
     // Scene
     scene = new THREE.Scene();
@@ -403,7 +434,7 @@ export function initScene3D() {
             if (isInsideBarnView) {
                 exitBarn();
             } else {
-                openDoor();
+                openDoor(false);
             }
         }
     };
