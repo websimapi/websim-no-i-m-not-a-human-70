@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
-import { isValidPosition, isPathClear } from './collision3d.js';
 
 const PI_2 = Math.PI / 2;
 const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
@@ -87,7 +86,7 @@ function onTouchMove(event, controls) {
     touchStartY = touch.clientY;
 }
 
-function onTouchEnd(event, raycaster, camera, walkableObjects, onTargetSet, interactiveTargets, onInteract, container) {
+function onTouchEnd(event, raycaster, camera, walkableObjects, onTargetSet, interactiveTargets, onInteract) {
     event.preventDefault();
     
     const touch = event.changedTouches[0];
@@ -97,34 +96,25 @@ function onTouchEnd(event, raycaster, camera, walkableObjects, onTargetSet, inte
     
     raycaster.setFromCamera(mouse, camera);
 
-    // Check for interaction first
-    if (interactiveTargets && interactiveTargets.length > 0 && typeof onInteract === 'function') {
-        const hits = raycaster.intersectObjects(interactiveTargets, true);
-        if (hits.length > 0) {
-            const playerPos = camera.getWorldPosition(new THREE.Vector3());
-            // Loosen distance check for mobile tap
-            if (playerPos.distanceTo(hits[0].point) < 8.0) {
+    // If not dragging, handle interaction or movement
+    if (!isDragging) {
+        // Check for interaction first
+        if (interactiveTargets && interactiveTargets.length > 0 && typeof onInteract === 'function') {
+            const hits = raycaster.intersectObjects(interactiveTargets, true);
+            if (hits.length > 0) {
                 onInteract(hits[0].object);
                 isDragging = false; // Reset drag state
-                return;
+                return; // Interaction handled
             }
         }
-    }
 
-    // If not dragging, handle movement
-    if (!isDragging) {
+        // If no interaction, handle movement
         const intersects = raycaster.intersectObjects(walkableObjects);
         if (intersects.length > 0) {
             const hit = intersects[0];
             const targetPosition = hit.point.clone();
             targetPosition.y = 1.7;
-            
-            // Validate target position before setting
-            const playerPos = camera.getWorldPosition(new THREE.Vector3());
-            const isInside = container.dataset.insideBarn === 'true';
-            if (isValidPosition(targetPosition, isInside) && isPathClear(playerPos, targetPosition, isInside)) {
-                onTargetSet(targetPosition, hit.point);
-            }
+            onTargetSet(targetPosition, hit.point);
         }
     }
 
@@ -194,7 +184,7 @@ export function setupControlEventListeners(container, controls, raycaster, camer
     if (isMobile) {
         const touchStartHandler = (e) => onTouchStart(e);
         const touchMoveHandler = (e) => onTouchMove(e, controls);
-        const touchEndHandler = (e) => onTouchEnd(e, raycaster, camera, walkableObjects, onTargetSet, interactiveTargets, onInteract, container);
+        const touchEndHandler = (e) => onTouchEnd(e, raycaster, camera, walkableObjects, onTargetSet, interactiveTargets, onInteract);
 
         container.addEventListener('touchstart', touchStartHandler, { passive: false });
         container.addEventListener('touchmove', touchMoveHandler, { passive: false });
@@ -209,30 +199,25 @@ export function setupControlEventListeners(container, controls, raycaster, camer
         const clickHandler = (e) => {
             const isInside = container.dataset.insideBarn === 'true';
 
+            const mouse = new THREE.Vector2();
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+
+            // Prioritize interaction over movement
+            const interactHits = raycaster.intersectObjects(interactiveTargets, true);
+            if (interactHits.length > 0) {
+                onInteract(interactHits[0].object);
+                return; // Interaction handled, stop here
+            }
+            
             if (isInside) {
-                const mouse = new THREE.Vector2();
-                mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-                mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
-                raycaster.setFromCamera(mouse, camera);
-
-                // Prioritize interaction over movement when inside
-                const interactHits = raycaster.intersectObjects(interactiveTargets, true);
-                if (interactHits.length > 0) {
-                    onInteract(interactHits[0].object);
-                    return; // Interaction handled, stop here
-                }
-
                 const walkHits = raycaster.intersectObjects(walkableObjects);
                 if (walkHits.length > 0) {
                     const hit = walkHits[0];
                     const targetPosition = hit.point.clone();
                     targetPosition.y = 1.7;
-                    
-                    // Validate target position
-                    const playerPos = camera.getWorldPosition(new THREE.Vector3());
-                    if (isValidPosition(targetPosition, true) && isPathClear(playerPos, targetPosition, true)) {
-                        onTargetSet(targetPosition, hit.point);
-                    }
+                    onTargetSet(targetPosition, hit.point);
                 }
             } else if (container.dataset.interact !== '1') {
                 controls.lock();

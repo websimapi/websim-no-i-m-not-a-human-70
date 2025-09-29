@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { createControls, setupControlEventListeners, getMovementState, isMobile } from './controls3d.js';
 import { createGround, createMoveIndicator, createBarn, createFoliage, createLighting } from './objects3d.js';
-import { initializeColliders, resolveCollision, initializeBarnInteriorCollider, setDoorState, isValidPosition, isPathClear } from './collision3d.js';
+import { initializeColliders, resolveCollision, initializeBarnInteriorCollider } from './collision3d.js';
 
 let scene, camera, renderer, controls, raycaster;
 const velocity = new THREE.Vector3();
@@ -35,31 +35,16 @@ const instructions = document.getElementById('scene-3d-instructions');
 
 function onTargetSet(target, hitPoint) {
     if (isInsideBarnView) {
-        // More precise check for clicking "through" the doorway
-        const BARN_DEPTH = 18;
-        const frontWallZ = barnGroupRef.position.z + BARN_DEPTH / 2;
-        const DOOR_X = -2.5, DOOR_W = 1.25;
-        const doorMinX = DOOR_X - DOOR_W / 2;
-        const doorMaxX = DOOR_X + DOOR_W / 2;
-
-        if (target.z > frontWallZ && target.x > doorMinX && target.x < doorMaxX) {
-            exitBarn();
-            return;
+        // When inside, clicking should set a move target. Exiting is handled by clicking the door.
+        targetPosition = target;
+        isMovingToTarget = true;
+        if (moveIndicator) {
+            moveIndicator.position.set(hitPoint.x, 0.02, hitPoint.z);
+            moveIndicator.visible = true;
+            moveIndicator.scale.set(1,1,1);
         }
-        
-        // Check if target position is valid and path is clear
-        const playerPos = controls.getObject().position;
-        if (!isValidPosition(target, true) || !isPathClear(playerPos, target, true)) {
-            return; // Invalid target, ignore
-        }
-    } else {
-        // Outside barn - check if target is valid and path is clear
-        const playerPos = controls.getObject().position;
-        if (!isValidPosition(target, false) || !isPathClear(playerPos, target, false)) {
-            return; // Invalid target, ignore
-        }
+        return;
     }
-    
     targetPosition = target;
     isMovingToTarget = true;
     if (moveIndicator) {
@@ -73,8 +58,8 @@ function onTargetSet(target, hitPoint) {
 function openDoor() {
     if (doorOpening || doorOpened || !barnDoorMesh || !barnGroupRef || !controls) return;
     doorOpening = true;
-    setDoorState(true); // Update collision system
     isExitingBarn = false;
+    initializeColliders(barnGroupRef, true); // Re-init colliders with door open
     const playerObj = controls.getObject();
     dollyStart = playerObj.position.clone();
     
@@ -152,6 +137,7 @@ function animate() {
     const canMoveToTarget = (isMobile || isInsideBarnView) && isMovingToTarget && targetPosition;
 
     if (isInsideBarnView) {
+        container.dataset.insideBarn = 'true';
         if (isMobile) {
             // Mobile: keep looking around enabled
         } else {
@@ -160,6 +146,8 @@ function animate() {
                 document.exitPointerLock();
             }
         }
+    } else {
+        container.dataset.insideBarn = 'false';
     }
     
     if (canMoveToTarget) {
@@ -222,8 +210,7 @@ function animate() {
         // keep the physical door visible while it swings and after it opens
         if (Math.abs(doorAngle - target) < 0.02) { 
             doorOpened = true; 
-            doorOpening = false;
-            setDoorState(true); // Ensure door is marked as open
+            doorOpening = false; 
         }
     }
 
@@ -234,7 +221,7 @@ function animate() {
         if (pivot) pivot.rotation.y = doorAngle;
         if (Math.abs(doorAngle - targetAngle) < 0.02) {
             doorOpened = false;
-            setDoorState(false); // Update collision system
+            initializeColliders(barnGroupRef, false); // Re-init colliders with door closed
             if(!dollyActive) isExitingBarn = false; // Stop closing when shut and dolly is done
         }
     }
@@ -243,7 +230,7 @@ function animate() {
     if (doorHighlight && barnDoorMesh && !doorOpening && !doorOpened) {
         const doorPos = new THREE.Vector3(); barnDoorMesh.getWorldPosition(doorPos);
         const dist = controls.getObject().position.distanceTo(doorPos);
-        const active = dist < 3.0;
+        const active = dist < 3.5;
         doorHighlight.visible = active;
         if (active) {
             doorHighlight.material.opacity = 0.65 + Math.sin(time * 0.012) * 0.2;
@@ -349,16 +336,13 @@ export function initScene3D() {
     barnGroupRef = barnGroup;
     if (barnGroup.userData?.doorPivot) {
         interactiveTargets = [barnGroup.userData.doorPivot];
-        if (barnGroup.userData.exitTrigger) {
-            barnExitTrigger = barnGroup.userData.exitTrigger;
-            interactiveTargets.push(barnExitTrigger);
-        }
+        // The exit trigger is now the door itself, so no need to add a separate trigger.
         barnDoorMesh = barnGroup.userData.doorMesh;
         if (barnDoorMesh) barnDoorMesh.visible = true;
     }
 
     // Initialize collision system
-    initializeColliders(barnGroup);
+    initializeColliders(barnGroup, false); // Initially door is closed
     if (barnGroup.userData.interiorSurface) {
         initializeBarnInteriorCollider(barnGroup.userData.interiorSurface);
     }
@@ -377,51 +361,46 @@ export function initScene3D() {
         doorHighlight.visible = false;
     }
 
-    // Event listeners
-    removeEventListeners = setupControlEventListeners(
-        container, controls, raycaster, camera, walkableObjects, onTargetSet, instructions, interactiveTargets, (target) => {
-            if (target === barnExitTrigger) {
+    const handleInteraction = (target) => {
+        // Check if the clicked object is the door or part of it
+        let parent = target;
+        let isDoorPart = false;
+        while(parent) {
+            if (parent === barnGroupRef.userData.doorPivot) {
+                isDoorPart = true;
+                break;
+            }
+            parent = parent.parent;
+        }
+
+        if (isDoorPart) {
+             const doorPos = new THREE.Vector3();
+             barnGroupRef.userData.doorPivot.getWorldPosition(doorPos);
+             if (controls.getObject().position.distanceTo(doorPos) > 3.5) {
+                return; // Too far to interact
+             }
+            
+            if (isInsideBarnView) {
                 exitBarn();
-                return;
-            }
-
-            // Check if the clicked object is the door or part of it
-            let parent = target;
-            let isDoorPart = false;
-            while(parent) {
-                if (parent === barnGroupRef.userData.doorPivot) {
-                    isDoorPart = true;
-                    break;
-                }
-                parent = parent.parent;
-            }
-
-            if (isDoorPart) {
-                if (isInsideBarnView) {
-                    exitBarn();
-                } else {
-                    openDoor();
-                }
+            } else {
+                openDoor();
             }
         }
+    };
+
+
+    // Event listeners
+    removeEventListeners = setupControlEventListeners(
+        container, controls, raycaster, camera, walkableObjects, onTargetSet, instructions, interactiveTargets, handleInteraction
     );
 
     interactRaycaster = new THREE.Raycaster();
     const onMouseDown = () => {
         if (!interactiveTargets.length || !controls) return;
         
-        const interactableNow = isInsideBarnView ? [barnExitTrigger] : [barnGroupRef.userData.doorPivot];
-        if (!interactableNow[0]) return;
-
-        const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
-        interactRaycaster.set(camera.position, dir);
-        const hits = interactRaycaster.intersectObjects(interactableNow, true);
-        
-        if (isInsideBarnView) {
-            if (hits.length) exitBarn();
-        } else {
-             if (hits.length && controls.getObject().position.distanceTo(hits[0].point) < 3.0) openDoor();
-        }
+        // This is for center-screen raycasting (FPS style)
+        // We'll rely on the click/touch handler for mouse/finger-based interaction instead.
+        // This keeps logic simpler and consistent across input methods.
     };
     container.addEventListener('mousedown', onMouseDown);
 
