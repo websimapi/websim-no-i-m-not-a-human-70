@@ -20,7 +20,6 @@ let doorHighlight = null, barnDoorMesh = null, barnExitTrigger = null;
 let dollyActive = false, dollyT = 0, dollyStart = null, dollyEnd = null, lookTarget = null, barnGroupRef = null;
 let isInsideBarnView = false;
 let exitState = 'IDLE'; // 'IDLE', 'OPENING_DOOR', 'DOLLY_OUT', 'CLOSING_DOOR'
-let externalExitDestination = null; // Global for desired exit point
 
 // Hardcoded door center X from objects3d.js definition
 const DOOR_CENTER_X = -2.5;
@@ -69,10 +68,6 @@ function openDoor(isExiting = false) {
     if (isExiting && !isInsideBarnView) return;
 
     if (isExiting) {
-        if (!externalExitDestination) {
-            console.error("External exit destination required but not defined.");
-            return;
-        }
         exitState = 'OPENING_DOOR';
     }
     
@@ -92,7 +87,7 @@ function openDoor(isExiting = false) {
     let p1Position; // Control point for the Bezier curve
     
     if (isExiting) {
-        // Exit Path: currentPos -> P1 (doorway) -> P2 (safe exterior position)
+        // Exit Path: currentPos -> P1 (doorway) -> P2 (pre-entry position)
         
         // Determine the horizontal center of the door opening
         const doorCenterX = barnGroupRef.position.x + DOOR_CENTER_X; // Should be -2.5
@@ -100,7 +95,7 @@ function openDoor(isExiting = false) {
         // P1: Use a point slightly outside the door, centered on the doorway.
         p1Position = new THREE.Vector3(doorCenterX, 1.7, frontWallZ + 1.5); 
         
-        const endPos = externalExitDestination.clone(); // Use the safe, central exterior point
+        const endPos = dollyStart[0].clone(); // dollyStart[0] holds the pre-entry position from the last successful entry
         dollyStart = [playerStartPos, p1Position]; // P0, P1 control point
         dollyEnd = endPos; // Final destination
         lookTarget = null; // Player controls view on exit
@@ -121,13 +116,14 @@ function openDoor(isExiting = false) {
         );
 
         dollyEnd = new THREE.Vector3(
-            barnGroupRef.position.x + DOOR_CENTER_X, // Centered on door opening X internally
+            barnGroupRef.position.x, // Target the center X of the barn interior
             1.7,
-            frontWallZ - 3.5 // Positioned inside
+            frontWallZ - 5.5 // Positioned deeper inside, near the back of the explorable semi-circle
         );
         
-        // Store entry path P0 and P1. We use externalExitDestination for exit P2.
-        dollyStart = [playerStartPos.clone(), p1Position];
+        // Store entry point (P0) for later exit path planning.
+        const entryStartPos = playerStartPos.clone();
+        dollyStart = [entryStartPos, p1Position];
         
         // Player looks slightly further inside
         lookTarget = dollyEnd.clone();
@@ -150,9 +146,22 @@ function startDoorClose() {
 function exitBarn() {
     if (exitState !== 'IDLE' || dollyActive || !isInsideBarnView) return;
 
-    // We no longer rely on dollyStart[0] to define the exit destination (P2). 
-    // We rely on externalExitDestination defined in initScene3D.
-    
+    // IMPORTANT: If dollyStart is not populated (i.e., we somehow loaded directly into the barn), 
+    // we need a safe exit point. We assume dollyStart[0] holds the external position near the door (5 units outside).
+    if (!dollyStart || !Array.isArray(dollyStart) || dollyStart.length === 0 || dollyStart.length === 1) {
+        const doorWorldPos = new THREE.Vector3();
+        if (barnGroupRef && barnGroupRef.userData.doorPivot) barnGroupRef.userData.doorPivot.getWorldPosition(doorWorldPos);
+        else doorWorldPos.set(0, 1.7, -15); // Fallback if barnRef is missing
+        
+        // Define a pseudo-start position for the exit path
+        const safeExitPos = new THREE.Vector3(doorWorldPos.x, 1.7, doorWorldPos.z + 5);
+        dollyStart = [safeExitPos]; 
+        
+        // Temporarily move player to a point slightly inside the door to ensure path works (fallback only)
+        const BARN_DEPTH = 18;
+        controls.getObject().position.set(barnGroupRef.position.x, 1.7, barnGroupRef.position.z + BARN_DEPTH / 2 - 2.5);
+    }
+
     // Clear any movement target when exiting
     isMovingToTarget = false;
     if (moveIndicator) moveIndicator.visible = false;
@@ -364,7 +373,6 @@ export function initScene3D() {
     doorOpening = false; doorOpened = false; doorAngle = 0;
     isInsideBarnView = false; 
     exitState = 'IDLE'; // Reset state machine
-    externalExitDestination = null; // Reset dedicated exit spot
 
     // Scene
     scene = new THREE.Scene();
@@ -379,9 +387,6 @@ export function initScene3D() {
     controls = controlsResult.controls;
     raycaster = controlsResult.raycaster;
     scene.add(controls.getObject());
-
-    // Set initial player position far away
-    controls.getObject().position.set(0, 1.7, 5); 
 
     // Renderer
     renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
@@ -416,12 +421,6 @@ export function initScene3D() {
         if (barnDoorMesh) barnDoorMesh.visible = true;
     }
 
-    // Calculate safe external position (centered on front facade, 5 units out)
-    const BARN_DEPTH = 18;
-    const frontWallZ = barnGroupRef.position.z + BARN_DEPTH / 2; // Z position of front wall face
-    // X=0 (center of facade), Z = front wall Z + 5 units out
-    externalExitDestination = new THREE.Vector3(barnGroupRef.position.x, 1.7, frontWallZ + 5); 
-    
     // Initialize collision system
     initializeColliders(barnGroup, false); // Initially door is closed
     if (barnGroup.userData.interiorSurface) {
