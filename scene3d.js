@@ -118,7 +118,7 @@ function openDoor(isExiting = false) {
         dollyEnd = new THREE.Vector3(
             barnGroupRef.position.x, // Target the center X of the barn interior
             1.7,
-            frontWallZ - 5.5 // Positioned deeper inside, near the back of the explorable semi-circle
+            frontWallZ - 3.0 // Positioned closer to the entrance inside the barn
         );
         
         // Store entry point (P0) for later exit path planning.
