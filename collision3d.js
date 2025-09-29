@@ -8,9 +8,17 @@ let doorCollider = null;
 export function initializeBarnInteriorCollider(cylinderMesh) {
     const worldPos = new THREE.Vector3();
     cylinderMesh.getWorldPosition(worldPos);
+
+    // Get the world position of the barn group to determine the flat wall's Z coordinate
+    const barnWorldPos = new THREE.Vector3();
+    cylinderMesh.parent.getWorldPosition(barnWorldPos);
+    const BARN_DEPTH = 18; // From objects3d.js
+    const flatWallZ = barnWorldPos.z + BARN_DEPTH / 2;
+
     interiorCylinder = {
         center: new THREE.Vector2(worldPos.x, worldPos.z),
         radius: cylinderMesh.geometry.parameters.radiusTop,
+        flatWallZ: flatWallZ,
     };
 }
 
@@ -72,12 +80,19 @@ export function resolveCollision(oldPos, delta, isInsideBarn = false) {
             const p2d = new THREE.Vector2(p.x, p.z);
             const distSq = p2d.distanceToSquared(interiorCylinder.center);
             const effectiveRadius = interiorCylinder.radius - PLAYER_RADIUS;
+            
+            // Check against the curved wall
             if (distSq > effectiveRadius * effectiveRadius) {
                 // Project back onto the cylinder boundary
                 const dir = p2d.sub(interiorCylinder.center).normalize();
                 const correctedPos2D = interiorCylinder.center.clone().add(dir.multiplyScalar(effectiveRadius));
                 p.x = correctedPos2D.x;
                 p.z = correctedPos2D.y;
+            }
+
+            // Check against the flat wall (the entrance side)
+            if (p.z > interiorCylinder.flatWallZ - PLAYER_RADIUS) {
+                p.z = interiorCylinder.flatWallZ - PLAYER_RADIUS;
             }
         }
 
