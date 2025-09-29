@@ -199,11 +199,11 @@ export function createBarn(textureLoader) {
         const windowGlass = new THREE.Mesh(
             new THREE.PlaneGeometry(winW, winH),
             new THREE.MeshStandardMaterial({
-                color: 0x99aaff,
+                color: 0x334455, // Darker, moody blue
                 transparent: true,
-                opacity: 0.1,
-                roughness: 0.15,
-                metalness: 0.2,
+                opacity: 0.4, // Semi transparent
+                roughness: 0.6, // Suggests grime or old glass
+                metalness: 0.1, 
                 side: THREE.DoubleSide,
                 depthWrite: false, // Important for transparency sorting
             })
@@ -224,9 +224,9 @@ export function createBarn(textureLoader) {
             const rightSeg = new THREE.Mesh(new THREE.PlaneGeometry(rightW, WALL_HEIGHT), interiorWallMaterial);
             rightSeg.position.set(doorX + doorW/2 + rightW/2, WALL_HEIGHT/2, facadeZ); barnGroup.add(rightSeg);
         }
-        const topWallSegmentH = Math.max(0.01, WALL_HEIGHT - (doorY + doorH/2));
-        const topWallSegment = new THREE.Mesh(new THREE.PlaneGeometry(doorW, topWallSegmentH), interiorWallMaterial);
-        topWallSegment.position.set(doorX, doorY + doorH/2 + topWallSegmentH/2, facadeZ); barnGroup.add(topWallSegment);
+        const topH = Math.max(0.01, WALL_HEIGHT - (doorY + doorH/2));
+        const topSeg = new THREE.Mesh(new THREE.PlaneGeometry(doorW, topH), interiorWallMaterial);
+        topSeg.position.set(doorX, doorY + doorH/2 + topH/2, facadeZ); barnGroup.add(topSeg);
         const bottomH = Math.max(0.01, (doorY - doorH/2));
         const botSeg = new THREE.Mesh(new THREE.PlaneGeometry(doorW, bottomH), interiorWallMaterial);
         botSeg.position.set(doorX, bottomH/2, facadeZ); barnGroup.add(botSeg);
