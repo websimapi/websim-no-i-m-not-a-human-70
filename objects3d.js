@@ -224,12 +224,12 @@ export function createBarn(textureLoader) {
             const rightSeg = new THREE.Mesh(new THREE.PlaneGeometry(rightW, WALL_HEIGHT), interiorWallMaterial);
             rightSeg.position.set(doorX + doorW/2 + rightW/2, WALL_HEIGHT/2, facadeZ); barnGroup.add(rightSeg);
         }
-        const topH = Math.max(0.01, WALL_HEIGHT - (doorY + doorH/2));
-        const topSeg = new THREE.Mesh(new THREE.PlaneGeometry(doorW, topH), interiorWallMaterial);
-        topSeg.position.set(doorX, doorY + doorH/2 + topH/2, facadeZ); barnGroup.add(topSeg);
-        const bottomH = Math.max(0.01, (doorY - doorH/2));
-        const botSeg = new THREE.Mesh(new THREE.PlaneGeometry(doorW, bottomH), interiorWallMaterial);
-        botSeg.position.set(doorX, bottomH/2, facadeZ); barnGroup.add(botSeg);
+        const facadeTopH = Math.max(0.01, WALL_HEIGHT - (doorY + doorH/2));
+        const topSeg = new THREE.Mesh(new THREE.PlaneGeometry(doorW, facadeTopH), interiorWallMaterial);
+        topSeg.position.set(doorX, doorY + doorH/2 + facadeTopH/2, facadeZ); barnGroup.add(topSeg);
+        const facadeBotH = Math.max(0.01, (doorY - doorH/2));
+        const botSeg = new THREE.Mesh(new THREE.PlaneGeometry(doorW, facadeBotH), interiorWallMaterial);
+        botSeg.position.set(doorX, facadeBotH/2, facadeZ); barnGroup.add(botSeg);
 
         // Panoramic 180° interior wrap (inward-facing half cylinder)
         interiorTex.wrapS = THREE.RepeatWrapping; interiorTex.wrapT = THREE.ClampToEdgeWrapping; interiorTex.needsUpdate = true;
