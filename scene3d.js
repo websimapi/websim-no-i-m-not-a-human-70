@@ -89,6 +89,14 @@ function openDoor() {
     dollyActive = true;
 }
 
+function startDoorClose() {
+    // Only close if the door is open, we are inside, and we aren't already closing/exiting.
+    if (doorOpened && !dollyActive && isInsideBarnView && !isExitingBarn) {
+        // We reuse isExitingBarn flag for the closing animation logic.
+        isExitingBarn = true;
+    }
+}
+
 function exitBarn() {
     if (dollyActive) return;
 
@@ -277,6 +285,12 @@ function animate() {
                 if (!isMobile && controls.isLocked) {
                     controls.unlock();
                 }
+                
+                // --- NEW CODE: Trigger automatic close after entry ---
+                setTimeout(() => {
+                    startDoorClose();
+                }, 3000); // 3 seconds delay before closing
+                // -----------------------------------------------------
             } else {
                  isExitingBarn = false; // Dolly out finished
             }
